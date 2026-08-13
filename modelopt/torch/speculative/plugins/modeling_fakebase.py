@@ -72,6 +72,52 @@ _SAFETENSORS_INDEX_FILENAME = "model.safetensors.index.json"
 _SAFETENSORS_SINGLE_FILENAMES = ["model.safetensors", "consolidated.safetensors"]
 
 
+def _resolve_rope_theta(base_cfg, attn_kind: str = "sliding_attention") -> float | None:
+    """Return the base model's RoPE theta, handling nested ``rope_parameters``.
+
+    Most models expose a flat ``rope_theta``. Gemma 4 instead nests per-attention-kind RoPE
+    settings under ``rope_parameters``, e.g.::
+
+        {
+            "full_attention": {
+                "rope_theta": 1e6,
+                "rope_type": "proportional",
+                "partial_rotary_factor": 0.25,
+            },
+            "sliding_attention": {"rope_theta": 1e4, "rope_type": "default"},
+        }
+
+    A flat ``getattr(base_cfg, "rope_theta", None)`` returns ``None`` there, and the draft then
+    silently trains on the draft class's default theta instead of the base's — training loss and
+    accuracy still improve while MT-Bench AAL is capped, because RoPE frequencies get baked into
+    the trained weights.
+
+    ``attn_kind`` selects which entry to read; it must match the attention the DRAFT uses. The
+    default is ``sliding_attention`` because SWA drafts are the common case for Gemma 4, and its
+    ``rope_type`` is plain ``default`` (the ``full_attention`` entry uses ``proportional`` rope
+    with ``partial_rotary_factor``, which the draft classes do not implement).
+
+    Every other form -- a flat ``rope_theta``, or a single-kind ``rope_parameters`` dict -- goes
+    through the exporter's shared ``_get_rope_theta`` first, so the two keep agreeing on which
+    field wins when a config carries both. Only the nested per-kind form, which that reader does
+    not look into, is resolved here.
+    """
+    from modelopt.torch.export.plugins.hf_spec_export import _get_rope_theta
+
+    theta = _get_rope_theta(base_cfg)
+    if theta is not None:
+        return theta
+    params = getattr(base_cfg, "rope_parameters", None)
+    if not isinstance(params, dict):
+        return None
+    entry = params.get(attn_kind)
+    if entry is None:
+        # Single-kind nested form, or an unknown kind name: fall back to the sole entry.
+        values = [v for v in params.values() if isinstance(v, dict) and "rope_theta" in v]
+        entry = values[0] if len(values) == 1 else None
+    return entry.get("rope_theta") if isinstance(entry, dict) else None
+
+
 class FakeBaseConfig(PretrainedConfig):
     """Minimal config for FakeBaseModel that supports offline speculative decoding training."""
 
@@ -184,8 +230,6 @@ class FakeBaseModel(PreTrainedModel):
                 local checkpoint; otherwise it is treated as a Hub repo ID and the required
                 files are downloaded via ``huggingface_hub``.
         """
-        from modelopt.torch.export.plugins.hf_spec_export import _get_rope_theta
-
         orig_config = transformers.AutoConfig.from_pretrained(
             source, trust_remote_code=trust_remote_code
         )
@@ -210,9 +254,9 @@ class FakeBaseModel(PreTrainedModel):
             num_key_value_heads=getattr(base_cfg, "num_key_value_heads", None),
             intermediate_size=getattr(base_cfg, "intermediate_size", None),
             rms_norm_eps=getattr(base_cfg, "rms_norm_eps", 1e-6),
-            # Shared with the exporter: where a config keeps rope_theta depends on the
-            # transformers version, and reading it wrong is silent until serve time.
-            rope_theta=_get_rope_theta(base_cfg),
+            # Shared with the exporter (via _resolve_rope_theta): where a config keeps rope_theta
+            # depends on the transformers version, and reading it wrong is silent until serve time.
+            rope_theta=_resolve_rope_theta(base_cfg),
             final_norm_type=_select_final_norm_type(
                 getattr(base_cfg, "model_type", None), base_cfg
             ),
