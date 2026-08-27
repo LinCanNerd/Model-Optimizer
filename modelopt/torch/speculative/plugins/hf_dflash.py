@@ -525,6 +525,16 @@ class HFDFlashModel(DFlashModel):
             else base_config.num_hidden_layers
         )
         num_draft_layers = self.dflash_config.num_hidden_layers
+        # Streaming/offline runs must pass the ids the hidden-state PRODUCER actually
+        # captured (train_eagle_streaming.sh does). The trainer never indexes hidden_states
+        # itself there -- it consumes ``aux_hidden_states`` verbatim (see
+        # DFlashBaseModelOutput.from_offline_dict) -- so the computed default below is pure
+        # fiction that still lands in the exported config, where vLLM reads it to choose
+        # SERVING capture layers. Measured on Gemma-4-E4B DSpark step 7000 (80q MT-Bench,
+        # num_spec=7): serving the same weights with the invented [1,10,20,30,39] gives
+        # AL 1.4221, while the layers training was actually fed ([5,11,17,23,35]) give
+        # AL 2.5287. Nothing errors, because the two lists have equal LENGTH and the only
+        # validation is on fc's input width.
         user_target_layer_ids = config.dflash_architecture_config.get("target_layer_ids")
         if user_target_layer_ids:
             if len(user_target_layer_ids) != num_draft_layers:

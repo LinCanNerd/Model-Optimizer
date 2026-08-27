@@ -150,6 +150,60 @@ fi
 # Forwarded verbatim to the trainer; capture before the helpers below run.
 SCRIPT_ARGS=("$@")
 
+# EAGLE_CAPTURE_IDS configures the producer: the draft's aux layers, normally followed by
+# one extra final entry that is the KD target (hf_streaming_dataset peels it off as
+# base_model_hidden_states; under data.final_aux_is_base_hidden every plane is an aux
+# feature instead). The trainer consumes aux_hidden_states verbatim and cannot tell which
+# layers produced them, so a DFlash-family trainer is handed the same list as its
+# dflash_architecture_config.target_layer_ids. Without this, build_target_layer_ids()
+# invents a uniformly-spaced list, it is written to the exported config, and vLLM reads it
+# to choose SERVING capture layers -- so the draft is served on layers it never trained
+# on. It fails silently because the invented list has the same LENGTH and only fc's input
+# width is validated.
+#
+# The recipe is loaded with this run's overrides, by the loader the trainer uses: to read
+# final_aux_is_base_hidden, and because only DFlash-family recipes take the ids -- the
+# EAGLE3 recipes share this script and their schema forbids a `dflash` section. A recipe
+# that cannot be loaded stops the run here rather than training on invented layers.
+#
+# The ids come back on fd 3 and the helper's stdout goes to stderr: importing modelopt pulls
+# in vLLM, which logs to stdout at import time ("INFO ... DeepEP v2 requires NCCL ..."), and
+# a captured stdout would hand that line to the trainer as part of the list.
+DFLASH_LAYER_ARGS=()
+AUX_IDS_JSON="$(python3 - "$EAGLE_CAPTURE_IDS" "${SCRIPT_ARGS[@]}" 3>&1 1>&2 <<'PY'
+import json
+import os
+import sys
+
+from modelopt.recipe import load_recipe
+
+capture = json.loads(sys.argv[1])
+config, overrides, rest = None, [], sys.argv[2:]
+while rest:
+    arg = rest.pop(0)
+    if arg == "--config":
+        config = rest.pop(0)
+    elif arg.startswith("--config="):
+        config = arg.split("=", 1)[1]
+    else:
+        overrides.append(arg)
+recipe = load_recipe(config, overrides=overrides)
+if hasattr(recipe, "dflash"):
+    aux = capture if recipe.data.final_aux_is_base_hidden else capture[:-1]
+    if not aux:
+        raise SystemExit("EAGLE_CAPTURE_IDS needs at least one aux id plus the final KD id")
+    with os.fdopen(3, "w") as result:
+        result.write(json.dumps(aux))
+PY
+)" || {
+    echo "ERROR: could not derive the draft's aux layer ids from EAGLE_CAPTURE_IDS=$EAGLE_CAPTURE_IDS" >&2
+    exit 1
+}
+if [ -n "$AUX_IDS_JSON" ]; then
+    echo "Trainer aux layer ids (capture ids minus KD target): $AUX_IDS_JSON"
+    DFLASH_LAYER_ARGS=(dflash.dflash_architecture_config.target_layer_ids="$AUX_IDS_JSON")
+fi
+
 SERVE_PORT="${SERVE_PORT:-8765}"
 SERVE_READY_TIMEOUT="${SERVE_READY_TIMEOUT:-900}"
 SERVE_NODES="${SERVE_NODES:-1}"
@@ -262,6 +316,7 @@ run_trainer_and_export() {
         "${mn_args[@]}" \
         data.streaming_server_url="$url" \
         data.streaming_model_name="$HF_MODEL_CKPT" \
+        "${DFLASH_LAYER_ARGS[@]}" \
         training.dataloader_num_workers="${STREAMING_NUM_WORKERS:-4}" \
         || { echo "ERROR: trainer failed." >&2; return 1; }
 
