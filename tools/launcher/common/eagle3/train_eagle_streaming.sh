@@ -192,6 +192,14 @@ if hasattr(recipe, "dflash"):
     aux = capture if recipe.data.final_aux_is_base_hidden else capture[:-1]
     if not aux:
         raise SystemExit("EAGLE_CAPTURE_IDS needs at least one aux id plus the final KD id")
+    # Convert capture ids -> DFlash ids by subtracting 1. vLLM reads EAGLE_CAPTURE_IDS
+    # verbatim (eagle_aux_hidden_state_layer_ids, the highest-priority branch) but adds 1 to
+    # target_layer_ids, and both are matched against ``layer_idx + 1``. So capture id N and
+    # target_layer_id N-1 name the same layer; forwarding the capture ids unconverted would
+    # shift serving one layer deeper.
+    aux = [i - 1 for i in aux]
+    if min(aux) < 0:
+        raise SystemExit("EAGLE_CAPTURE_IDS are 1-based; id 0 has no DFlash equivalent")
     with os.fdopen(3, "w") as result:
         result.write(json.dumps(aux))
 PY
@@ -200,7 +208,7 @@ PY
     exit 1
 }
 if [ -n "$AUX_IDS_JSON" ]; then
-    echo "Trainer aux layer ids (capture ids minus KD target): $AUX_IDS_JSON"
+    echo "Trainer aux layer ids (capture ids minus KD target, minus 1): $AUX_IDS_JSON"
     DFLASH_LAYER_ARGS=(dflash.dflash_architecture_config.target_layer_ids="$AUX_IDS_JSON")
 fi
 
