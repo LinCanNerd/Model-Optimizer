@@ -272,27 +272,19 @@ def _find_serve_model(rest_argv: list) -> str | None:
 
 
 def main():
-<<<<<<< HEAD
     # vLLM's torch.compile cache is not keyed on the fake quant applied at serve time, so a graph
     # compiled earlier for the same model without it would be reused and silently skip it.
     os.environ.setdefault("VLLM_DISABLE_COMPILE_CACHE", "1")
-    # Create parser that handles both quant and serve arguments
-    parser = FlexibleArgumentParser(description="vLLM model server with quantization support")
-    parser.add_argument("model", type=str, help="The path or name of the model to serve")
-    parser = make_arg_parser(parser)
-    add_mlflow_args(parser)
-    # Ensure workers can import our custom worker module when using spawn
-    repo_root = str(Path(__file__).resolve().parent)
-    if repo_root not in sys.path:
-        sys.path.insert(0, repo_root)
-    os.environ["PYTHONPATH"] = os.environ.get("PYTHONPATH", "") + ":" + f"{repo_root}"
-=======
     modelopt_parser = FlexibleArgumentParser(add_help=False)
     _add_fakequant_args(modelopt_parser)
     add_mlflow_args(modelopt_parser)
     modelopt_args, rest_argv = modelopt_parser.parse_known_args(sys.argv[1:])
     rest_argv = _default_to_serve(rest_argv)
->>>>>>> e58b8ffea5 (testing vllm interface)
+    # Ensure workers can import our custom worker module when using spawn
+    repo_root = str(Path(__file__).resolve().parent)
+    if repo_root not in sys.path:
+        sys.path.insert(0, repo_root)
+    os.environ["PYTHONPATH"] = os.environ.get("PYTHONPATH", "") + ":" + f"{repo_root}"
 
     if (modelopt_args.modelopt_quant_cfg or modelopt_args.modelopt_kv_quant_cfg) and (
         modelopt_args.modelopt_recipe_path
