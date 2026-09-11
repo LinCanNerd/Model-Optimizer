@@ -186,7 +186,7 @@ def _uses_modelopt_fp8_weight_scales(weight_quantizer: TensorQuantizer) -> bool:
 
 
 def weight_only_quantize(model: nn.Module):
-    """Just quantize the weights of the model."""
+    """Quantize every enabled weight quantizer reachable from ``model``, including nested heads."""
     name_to_module = dict(model.named_modules())
     seen_modules = set()
     for module in name_to_module.values():

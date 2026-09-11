@@ -540,6 +540,19 @@ def load_mtp_weights(
     if not tensors:
         return [], {}
 
+    # Nemotron-3 MTP blocks can be constructed before ``from_pretrained`` so their
+    # weights participate in calibration. Reloading the BF16 source tensors here
+    # would overwrite the calibrated modules.
+    from models import mtp_loaded_during_model_load
+
+    if mtp_loaded_during_model_load(model):
+        prefixes = inlined_prefixes | _keys_to_prefixes(tensors)
+        print(
+            f"✓ Detected {len(tensors)} MTP tensors under {sorted(prefixes)} "
+            "(loaded during model initialization; orphaned: 0)"
+        )
+        return sorted(prefixes), {}
+
     separate_keys = [k for k in tensors if not k.startswith(inlined_tuple)]
     prefixes = inlined_prefixes | _keys_to_prefixes(separate_keys)
 
@@ -765,6 +778,12 @@ def get_model(
     # Load config once and handle VL model detection
     try:
         hf_config = AutoConfig.from_pretrained(ckpt_path, **config_kwargs)
+
+        # Model-specific adapters may need to construct checkpoint-only modules
+        # before ``from_pretrained`` loads their weights.
+        from models import prepare_model_for_loading
+
+        prepare_model_for_loading(hf_config.model_type, ckpt_path, trust_remote_code)
 
         if is_nemotron_vl(hf_config):
             print(

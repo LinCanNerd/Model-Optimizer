@@ -28,8 +28,11 @@ from modelopt.torch.quantization.model_calib import (
     _needs_activation_forward_for_max_calib,
     apply_pre_quant_scale_and_smooth,
     disable_pre_quant_scale_and_resmooth,
+    enable_stats_collection,
+    finish_stats_collection,
     layerwise_calibrate,
     max_calibrate,
+    weight_only_quantize,
 )
 from modelopt.torch.quantization.nn import QuantLinear, TensorQuantizer
 from modelopt.torch.quantization.utils.layerwise_calib import LayerActivationCollector
@@ -612,6 +615,26 @@ def _make_quant_linear(input_cfg, fi=16, fo=8):
     lin.weight_quantizer.set_from_attribute_config(QuantizerAttributeConfig(num_bits=8))
     lin.input_quantizer.set_from_attribute_config(input_cfg)
     return lin
+
+
+def test_weight_only_quantize_reaches_nested_mtp_weights():
+    """Nested MTP weights calibrate even when the MTP forward is not executed."""
+
+    class _ModelWithMTP(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.mtp = nn.Module()
+            self.mtp.layers = nn.ModuleList(
+                [_make_quant_linear(QuantizerAttributeConfig(num_bits=8, enable=False))]
+            )
+
+    model = _ModelWithMTP()
+    mtp_projection = model.mtp.layers[0]
+    enable_stats_collection(model)
+    weight_only_quantize(model)
+    finish_stats_collection(model)
+
+    assert mtp_projection.weight_quantizer.amax is not None
 
 
 def test_max_calib_skips_forward_when_all_activations_constant():
