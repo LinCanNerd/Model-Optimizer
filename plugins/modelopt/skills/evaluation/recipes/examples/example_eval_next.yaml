@@ -41,12 +41,14 @@ services:
     container_mounts:                # source dirs MUST pre-exist (pyxis won't create them): ssh <login> 'mkdir -p <lustre>/<user>/.cache/{vllm,huggingface}'
       - ???:/cache/vllm
       - ???:/cache/huggingface
-    generation: {temperature: 1.0, top_p: 0.95}   # from model card (reasoning mode); adjust per card — mandatory lookup (references/model-card-research.md), same as 0.2.6
+    # Add generation fields for explicit user/task requirements first; otherwise
+    # only for model-card settings explicitly used for evaluation/benchmarking.
+    # Preserve checkpoint/vLLM defaults absent that evidence. Omission can still
+    # activate evaluator/agent defaults; inspect requests. null is not omission.
+    generation: {}                    # see SKILL Step 3; mirror explicit values in tags
     proxy:
-      request_timeout: 3600                      # ALWAYS set (else inherits the model fragment); MUST be >= benchmarks[].solver.agent_kwargs.llm_kwargs.timeout
-      extra_body:                                # card extras only, no no-op defaults; reasoning toggles in chat_template_kwargs
-        skip_special_tokens: false
-        chat_template_kwargs: {enable_thinking: true}   # toggle key is per model family
+      request_timeout: 3600                      # ALWAYS set; MUST be >= benchmarks[].solver.agent_kwargs.llm_kwargs.timeout
+      extra_body: {skip_special_tokens: false}   # add only requirement- or evaluation-provenanced extras; mirror in tags
       model_traffic: {capture_request_body: true}  # per service, never in a shared block
       interceptors:                              # lists REPLACE on merge — restate the whole chain
         # SWE-bench prepends system_message + turn_counter — see swebench_verified.md
@@ -117,8 +119,8 @@ output:
       log_config_params: true
       copy_logs: true
       exclude_patterns: ["shard*", "model_traffic.jsonl"]   # captured request bodies (FEA-224) stay in the run dir
-      description: ???               # '<model> | T=1.0 top_p=0.95 | <benchmark> (timeout_strategy=…) | r8'
-      # model/checkpoint_path/benchmark drive dashboard attribution (engine logs only a generic metric key); temperature/top_p mirror generation above.
-      # task_name = upstream slug (SWE-bench: swebench-verified); nemo-evaluator-next-version = eval_image version.
+      description: ???               # '<model> | verified effective sampling + sources | <benchmark> (timeout_strategy=…) | r8'
+      # Sampling tags mirror explicit generation fields; 'omitted' does not assert effective defaults.
+      # task_name = upstream slug; nemo-evaluator-next-version = eval_image version.
       tags: {framework: vllm, model: "???", checkpoint_path: "???", benchmark: "???", task_name: terminal-bench-2.1, nemo-evaluator-next-version: "0.5.0.1",
-        temperature: '1.0', top_p: '0.95'}
+        temperature: 'omitted', top_p: 'omitted'}
