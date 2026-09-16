@@ -133,6 +133,16 @@ def _is_enabled_quantizer(quantizer):
     return False
 
 
+def _mtp_prefix_is_quantized(prefix: str, quantized_layers: dict[str, Any]) -> bool:
+    """Return whether an MTP subtree has an exported quantized layer.
+
+    ``exclude_modules`` becomes the Hugging Face ``ignore`` list, which overrides
+    per-layer quantization metadata during loading. A prefix must therefore only
+    be ignored when none of its descendants are quantized.
+    """
+    return any(layer == prefix or layer.startswith(f"{prefix}.") for layer in quantized_layers)
+
+
 def _save_component_state_dict_safetensors(
     component: nn.Module,
     component_export_dir: Path,
@@ -863,14 +873,21 @@ def _prepare_moe_inputs(
 
 
 def _add_mtp_exclusions(model: nn.Module, quant_config: dict) -> None:
-    """Add MTP layer prefixes to exclude_modules if they were excluded from quantization.
-
-    This ensures they appear in ``quantization_config["ignore"]`` in ``config.json``.
-    """
+    """Add only unquantized MTP prefixes to the exported ignore list."""
     mtp_layer_prefixes = getattr(model, "_mtp_layer_prefixes", None)
     if mtp_layer_prefixes:
-        exclude_modules = quant_config["quantization"].setdefault("exclude_modules", [])
+        quantization = quant_config["quantization"]
+        quantized_layers = quantization.get("quantized_layers", {})
+        exclude_modules = quantization.setdefault("exclude_modules", [])
         for prefix in mtp_layer_prefixes:
+            # ``load_mtp_weights`` can also return the broad container prefix.
+            # Ignoring it would hide the entire language model from the loader.
+            if ".mtp" not in prefix and not prefix.startswith("mtp"):
+                print(f"Skipping non-MTP container prefix for ignore list: {prefix}")
+                continue
+            if _mtp_prefix_is_quantized(prefix, quantized_layers):
+                print(f"Keeping quantized MTP layer out of ignore list: {prefix}")
+                continue
             # Add wildcard pattern to exclude all submodules under this MTP layer
             pattern = f"{prefix}*"
             if pattern not in exclude_modules:

@@ -25,14 +25,62 @@ from _test_utils.torch.quantization.tied_modules import (
 )
 
 import modelopt.torch.quantization as mtq
+from modelopt.torch.export.convert_hf_config import convert_hf_quant_config_format
 from modelopt.torch.export.model_utils import TiedWeightMap
 from modelopt.torch.export.quant_utils import (
     fuse_prequant_layernorm,
     postprocess_state_dict,
     sync_tied_input_amax,
 )
-from modelopt.torch.export.unified_export_hf import _resolve_export_dtype
+from modelopt.torch.export.unified_export_hf import (
+    _add_mtp_exclusions,
+    _mtp_prefix_is_quantized,
+    _resolve_export_dtype,
+)
 from modelopt.torch.quantization.nn import TensorQuantizer
+
+
+def test_quantized_mtp_prefix_is_not_added_to_hf_ignore_list():
+    """Quantized MTP layers must remain loadable from both export config files."""
+    prefix = "language_model.mtp.layers.1"
+    quantized_layers = {
+        "language_model.mtp.layers.0.mixer.q_proj": {"quant_algo": "FP8"},
+        "language_model.mtp.layers.1.mixer.experts": {
+            "quant_algo": "NVFP4",
+            "group_size": 16,
+        },
+    }
+
+    assert _mtp_prefix_is_quantized(prefix, quantized_layers)
+    assert not _mtp_prefix_is_quantized("language_model.mtp.layers.2", quantized_layers)
+
+    quant_config = {
+        "quantization": {
+            "quant_algo": "MIXED_PRECISION",
+            "quantized_layers": quantized_layers,
+            "exclude_modules": [],
+        }
+    }
+    assert convert_hf_quant_config_format(quant_config)["ignore"] == []
+
+
+def test_mtp_exclusions_skip_container_and_quantized_subtrees():
+    model = SimpleNamespace(
+        _mtp_layer_prefixes=[
+            "language_model",
+            "language_model.mtp.layers.0",
+            "language_model.mtp.layers.1",
+        ]
+    )
+    quant_config = {
+        "quantization": {
+            "quantized_layers": {"language_model.mtp.layers.0.mixer.q_proj": {"quant_algo": "FP8"}}
+        }
+    }
+
+    _add_mtp_exclusions(model, quant_config)
+
+    assert quant_config["quantization"]["exclude_modules"] == ["language_model.mtp.layers.1*"]
 
 
 @pytest.mark.parametrize(
