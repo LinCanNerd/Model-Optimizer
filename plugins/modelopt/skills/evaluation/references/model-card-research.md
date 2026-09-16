@@ -3,8 +3,9 @@
 Use WebSearch to find the model card (HuggingFace, build.nvidia.com). Read it carefully, the FULL text, the devil is in the details. Extract ALL relevant configurations:
 
 - **Generation params (`temperature`, `top_p`, `max_new_tokens`, etc.).**
-  Explicit user/task requirements take precedence. Derive model-card overrides
-  only from statements tying each value to evaluation/benchmarking ("Benchmarked
+  Explicit user/task requirements, including the scoped
+  [AA task policy and provenance exception](aa-methodology.md), take precedence.
+  Otherwise derive model-card overrides only from statements tying each value to evaluation/benchmarking ("Benchmarked
   with…", "…were evaluated with…"). General "Recommended Sampling" rows,
   quickstarts, and supported output/context limits are not evaluation evidence.
   Cite the statement and scope each override to the stated benchmark/mode;

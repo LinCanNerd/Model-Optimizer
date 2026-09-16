@@ -41,14 +41,14 @@ services:
     container_mounts:                # source dirs MUST pre-exist (pyxis won't create them): ssh <login> 'mkdir -p <lustre>/<user>/.cache/{vllm,huggingface}'
       - ???:/cache/vllm
       - ???:/cache/huggingface
-    # Add generation fields for explicit user/task requirements first; otherwise
-    # only for model-card settings explicitly used for evaluation/benchmarking.
-    # Preserve checkpoint/vLLM defaults absent that evidence. Omission can still
-    # activate evaluator/agent defaults; inspect requests. null is not omission.
+    # Apply SKILL Step 3, including references/aa-methodology.md for applicable
+    # AA reproduction and its provenance exception. Otherwise use evaluation-
+    # provenanced card values or checkpoint/vLLM defaults; inspect requests.
+    # null is not omission.
     generation: {}                    # see SKILL Step 3; mirror explicit values in tags
     proxy:
       request_timeout: 3600                      # ALWAYS set; MUST be >= benchmarks[].solver.agent_kwargs.llm_kwargs.timeout
-      extra_body: {skip_special_tokens: false}   # add only requirement- or evaluation-provenanced extras; mirror in tags
+      extra_body: {skip_special_tokens: false}   # generation extras follow SKILL Step 3 (including scoped AA policy); mirror in tags
       model_traffic: {capture_request_body: true}  # per service, never in a shared block
       interceptors:                              # lists REPLACE on merge — restate the whole chain
         # SWE-bench prepends system_message + turn_counter — see swebench_verified.md

@@ -132,13 +132,11 @@ evaluation:
       params:
         parallelism: ???  # Number of concurrent requests per each benchmark
         request_timeout: 3600
-        max_retries: 10
-        # Add generation overrides for explicit user/task requirements first.
-        # Otherwise use model-card values ONLY when explicitly used for evaluation/
-        # benchmarking of the applicable task/mode (cite the statement).
-        # Without that evidence, preserve config.json/generation_config.json/vLLM
-        # defaults. Omission can still activate evaluator defaults: inspect resolved
-        # configs and canary requests (SKILL Step 3). null is not omission.
+        max_retries: 10  # For AA reproduction, verify total attempts per references/aa-methodology.md.
+        # Apply SKILL Step 3, including references/aa-methodology.md for applicable
+        # AA reproduction and its provenance exception. Otherwise use evaluation-
+        # provenanced card values or checkpoint/vLLM defaults; inspect requests.
+        # null is not omission. Update export tags for any explicit overrides.
     target:
       api_endpoint:
         api_key_name: DUMMY_API_KEY
