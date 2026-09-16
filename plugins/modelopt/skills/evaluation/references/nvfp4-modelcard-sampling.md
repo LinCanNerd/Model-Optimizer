@@ -10,12 +10,15 @@ not change its output distribution, so those checkpoints share their base
 checkpoint's row. A miss here means "read the card", not "not yet checked".
 
 Use this dated snapshot to cross-check published settings, not to fill gaps in
-silent or ambiguous cards. Read the exact card and verify each field's evaluation
+silent or ambiguous cards. Read the exact card and verify each field's required
 provenance — see `model-card-research.md`.
 
 ## Lookup
 
 **Explicit user/task requirements take precedence over model-card settings.**
+For applicable AA reproduction, use the [AA task policy](aa-methodology.md),
+including its lab-temperature/disclosed-output exception. The evaluation-only
+rules below apply otherwise; `rec` alone never authorizes every field.
 
 1. **Exact row, resolved per field.** `eval` → verify the card explicitly ties
    that field to evaluation/benchmarking for the applicable task/mode, then cite
@@ -35,8 +38,8 @@ provenance — see `model-card-research.md`.
    their published comparison; otherwise confirm effective config parity.
 
 `provenance` — **`eval`** (20 rows): recorded as tied to evaluation; verify each
-field against the card. **`rec`** (5 rows): inference recommendations only, not
-an override source. `max_num_tokens` records generation length, corresponding
+field against the card. **`rec`** (5 rows): inference recommendations, not
+ordinary evaluation evidence. `max_num_tokens` records generation length, corresponding
 to `nemo_evaluator_config.config.params.max_new_tokens`, not context length.
 
 | Model card ID | temp | top_p | max_num_tokens | prov | notes |

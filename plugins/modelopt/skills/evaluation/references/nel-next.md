@@ -136,7 +136,8 @@ SKILL.md Step 3 (same vLLM). The 0.2.6 `command:` maps to structured `services.<
 Size TP/DP + backend defaults (`--max-num-seqs = ceil(max_parallelism/DP)`, MoE
 `--enable-expert-parallel`, …) per `references/parallelism.md` + Step 3.
 **Generation overrides follow Step 3's provenance/precedence policy:** explicit
-user/task requirements first, then only card values explicitly used for the
+user/task requirements first, including the scoped [AA task policy](aa-methodology.md)
+and its provenance exception; otherwise only card values explicitly used for the
 applicable evaluation/benchmark. Use `generation.temperature`/`top_p`/`max_tokens`
 and supported `proxy.extra_body` fields. Otherwise preserve checkpoint/vLLM
 defaults, not general card recommendations or guessed caps. Inspect resolved

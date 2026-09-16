@@ -136,8 +136,8 @@ evaluation:
   nemo_evaluator_config:
     config:
       params:
-        # Resolve per SKILL Step 3: explicit user/task requirements, then applicable
-        # evaluation-provenanced card values, otherwise verified checkpoint/vLLM defaults.
+        # Resolve per SKILL Step 3, including references/aa-methodology.md only for
+        # applicable AA reproduction; otherwise retain the normal provenance/default policy.
         # These fields feed collect_rollout_params below; if omitting them, remove
         # those overrides too and verify Gym/evaluator defaults in actual requests.
         # Do not use null as a substitute for omission. Update export tags together.

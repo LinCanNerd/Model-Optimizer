@@ -10,7 +10,7 @@
       "Runs 'nel skills build-config' with correct flags matching user answers, using NEL's current model_type terminology for the chat/reasoning template family",
       "Searches the web for the model card on HuggingFace and extracts model-specific settings",
       "Sets correct HF handle: nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16",
-      "Overrides generation params from the model card only when explicitly tied to evaluation/benchmarking for the applicable task/mode; otherwise preserves verified checkpoint/server defaults",
+      "Applies authoritative task policy first (including the scoped AA exception if reproducing AA); otherwise overrides card params only with applicable evaluation provenance or preserves verified checkpoint/server defaults",
       "Honors explicit user/task generation requirements ahead of model-card settings and cites the source of each override",
       "Configures reasoning toggle via params_to_add with chat_template_kwargs.enable_thinking (not via system prompt)",
       "Disables reasoning for IFEval task using enable_thinking: false with use_system_prompt: false",
@@ -73,6 +73,43 @@
       "Checks final run logs and sample accounting before accepting result files as complete and comparable",
       "Routes baseline-vs-quantized comparability verification to the compare-results skill before presenting an accuracy delta",
       "Provides SSH-based log monitoring commands for SLURM execution"
+    ]
+  },
+  {
+    "name": "aa-generation-policy",
+    "skills": ["evaluation"],
+    "query": "Prepare an AA reproduction config for a reasoning model on GPQA and AA-LCR v1.1, without submitting. The exact model lab recommends temperature 0.7 and discloses a maximum output of 98304 tokens, but neither statement mentions evaluation. It supports 256K context. There is no top_p guidance. Keep these benchmark versions.",
+    "files": [],
+    "expected_behavior": [
+      "Reads the canonical AA methodology reference and treats applicable AA policy as authoritative ahead of generic evaluation-only card rules",
+      "Uses the lab-recommended temperature 0.7 and creator-disclosed reasoning output maximum 98304 without demanding an evaluation-provenance sentence; cites both disclosures",
+      "Explains that absent a lab temperature recommendation AA uses 0 for non-reasoning and 0.6 for reasoning",
+      "Does not invent top_p=0.95, a generic reasoning 65536 cap, or universal null; verifies effective requests and required budgets after adapters",
+      "Treats AA-LCR v1.1's 128K as a minimum, not an exact 131072 override; checks prompt plus output capacity and reports conflicts",
+      "Verifies retry semantics for up to 30 total API attempts including nested retries, rather than blindly setting max_retries=30",
+      "Scopes AA settings to applicable benchmark/version reproduction, preserves versions, and updates export provenance and tags"
+    ]
+  },
+  {
+    "name": "aa-nonreasoning-output",
+    "skills": ["evaluation"],
+    "query": "Prepare non-reasoning AA GPQA reproduction configs for two models with no lab temperature recommendation. One supports 16384 output tokens; the other has a disclosed 8192 output cap. Both have ample context. Do not submit.",
+    "files": [],
+    "expected_behavior": [
+      "Uses AA temperature 0 and output 16384 for the first model, reducing output to 8192 for the second with a cited capacity constraint",
+      "Does not require an evaluation-provenance sentence to apply AA methodology or spread the reduced cap to unrelated models/tasks",
+      "Does not impose a general AA top_p or exact 131072 context override; verifies effective requests"
+    ]
+  },
+  {
+    "name": "non-aa-gpqa-defaults",
+    "skills": ["evaluation"],
+    "query": "Prepare a generic GPQA evaluation, not an AA reproduction. My reasoning model card has only general inference recommendations and supported output limits, with no evaluation settings. Do not submit.",
+    "files": [],
+    "expected_behavior": [
+      "Does not infer AA reproduction from GPQA or its prompt format and does not apply the AA lab-recommendation exception",
+      "Preserves verified checkpoint/server defaults rather than imposing temperatures 0.6 or 1, top_p 0.95, output 16384 or 65536, a creator maximum, or null",
+      "Inspects evaluator defaults and effective requests; cites applicable evaluation evidence before any card-derived override"
     ]
   },
   {
