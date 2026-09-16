@@ -222,14 +222,17 @@ nemo_evaluator_config:
     params:
       parallelism: ???    # Required — size per references/parallelism.md (bounded by total request count vs GPU serving capacity); ask user in Step 4 if still unclear
       request_timeout: 3600
-      max_retries: 10
+      max_retries: 10     # Operational default; AA reproduction requires attempt-semantics verification below
 ```
 
 #### Generation parameters — provenance and precedence
 
-1. **Explicit user/task requirements take precedence.** Preserve required token
-   budgets and sampling settings; do not replace them with model-card values.
-2. **Read the full model card before deriving overrides.** Override
+1. **Explicit user/task requirements take precedence.** For applicable AA
+   benchmark/version reproduction, apply the authoritative
+   [AA task policy](references/aa-methodology.md), including its deliberate
+   exceptions to model-card evaluation provenance. Preserve required budgets and
+   sampling settings; surface conflicts rather than claiming AA reproduction.
+2. **Otherwise read the full model card before deriving overrides.** Override
    `max_new_tokens` / `max_tokens`, `temperature`, `top_p`, or other generation
    parameters only when the card explicitly says they were used for evaluation
    or benchmarking. Cite the statement and its applicable tasks/mode. General

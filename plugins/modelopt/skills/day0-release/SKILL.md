@@ -144,8 +144,10 @@ diff <(grep -vE 'checkpoint_path|served_model_name' baseline.yaml) \
 Any other difference biases the comparison and invalidates the gate: a mismatched
 `parallelism` between the two sides was worth ~2 pp, enough to invert the sign of
 the delta. Follow the evaluation skill's generation-parameter policy: explicit
-user/task requirements first; model-card overrides only for values explicitly
-used in evaluation/benchmarking of the applicable task/mode. Otherwise preserve
+user/task requirements first, including the scoped
+[AA task policy and provenance exception](../evaluation/references/aa-methodology.md);
+otherwise model-card overrides only for values explicitly used in
+evaluation/benchmarking of the applicable task/mode. Otherwise preserve
 `config.json`, `generation_config.json`, and vLLM defaults, without family-based
 or generic fallbacks. Apply any benchmark-specific split to both sides. Verify
 effective sampling parity too: identical client configs can inherit different
