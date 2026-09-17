@@ -104,7 +104,7 @@ that tie. `max_num_tokens` is the max generation length, i.e.
 - **Per-task overrides are narrow** — SciCode (lower temperature), τ²-Bench
   Telecom (greedy or larger cap), GPQA Diamond (larger cap), Terminal-Bench
   (uncapped). SKILL.md Step 3 forbids per-task `max_new_tokens`; conflicting
-  benchmark-specific budgets require separate configs or user confirmation,
+  benchmark-specific budgets require separate configs,
   not taking the maximum.
 
 ## Refreshing
