@@ -23,7 +23,7 @@ Use WebSearch to find the model card (HuggingFace, build.nvidia.com). Read it ca
   maximum. An explicit model-card budget for the applicable
   evaluation can override these defaults. No highest-number or same-family
   fallback. Keep one top-level value; conflicting benchmark budgets require
-  separate configs or user confirmation. See SKILL.md Step 3
+  separate configs. See SKILL.md Step 3
   "`max_new_tokens` — mandatory model-card lookup" for the full rule.
 - TP/DP settings (to set them appropriately, AskUserQuestion on how many GPUs the model will be deployed)
 - Reasoning config (if applicable):
