@@ -136,13 +136,8 @@ evaluation:
   nemo_evaluator_config:
     config:
       params:
-        # Resolve per SKILL Step 3, including references/aa-methodology.md only for
-        # applicable AA reproduction; otherwise retain the normal provenance/default policy.
-        # These fields feed collect_rollout_params below; if omitting them, remove
-        # those overrides too and verify Gym/evaluator defaults in actual requests.
-        # Do not use null as a substitute for omission. Update export tags together.
-        temperature: ???
-        top_p: ???
+        temperature: 1.0
+        top_p: 0.95
         # Gym client concurrency, TOTAL across instances — not a per-server cap.
         parallelism: 512  # canonical 1M; upstream 128K uses 256
         request_timeout: 36000      # 1M-token prefills are slow
@@ -324,12 +319,12 @@ export:
   mlflow:
     tracking_uri: ${oc.env:MLFLOW_TRACKING_URI}   # from modelopttools:eval-config
     experiment_name: ${oc.env:USER}/CHANGEME-served-model-name
-    description: 'CHANGEME-served-model-name | MRCR 1M | T=CHANGEME, top_p=CHANGEME, num_repeats=1'
+    description: 'CHANGEME-served-model-name | MRCR 1M | T=1.0, top_p=0.95, num_repeats=1'
     log_logs: true
     only_required: false
     tags:
       framework: vllm
       model: CHANGEME-served-model-name
       benchmark: nemo_gym.mrcr_n3_1m   # CHANGEME with the variant; upstream: nemo_gym.mrcr (1M) / nemo_gym.mrcr_128k
-      temperature: ???
-      top_p: ???
+      temperature: '1.0'
+      top_p: '0.95'
