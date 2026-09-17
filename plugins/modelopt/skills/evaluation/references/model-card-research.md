@@ -20,7 +20,7 @@ Use WebSearch to find the model card (HuggingFace, build.nvidia.com). Read it ca
   creator-disclosed maximum output length and any budget used for the applicable
   evaluation, with sources. Non-reasoning defaults to **16384**, lowered for
   smaller context/output caps; reasoning uses the creator-disclosed output
-  maximum (ask if unknown). An explicit model-card budget for the applicable
+  maximum. An explicit model-card budget for the applicable
   evaluation can override these defaults. No highest-number or same-family
   fallback. Keep one top-level value; conflicting benchmark budgets require
   separate configs or user confirmation. See SKILL.md Step 3

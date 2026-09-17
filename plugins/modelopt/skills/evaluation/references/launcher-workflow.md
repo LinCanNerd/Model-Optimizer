@@ -240,7 +240,7 @@ overridden task is reported under sampling params it did not use.
 #### `max_new_tokens` — mandatory model-card lookup
 
 1. **Read the HF model card before setting the value.** Identify the model's reasoning mode, creator-disclosed maximum output length, and any `max_tokens` / `max_new_tokens` used for the applicable evaluation. Cite the source and rationale in a config comment; quickstart examples are not evaluation budgets.
-2. **Non-reasoning:** use **16384**, lowered for smaller output caps or available context after input tokens. **Reasoning:** use the maximum output length allowed and disclosed by the model creators. Do not substitute 65536, a same-family budget, or the context-window size for an undisclosed output maximum; ask the user if it remains unknown.
+2. **Non-reasoning:** use **16384**, lowered for smaller output caps or available context after input tokens. **Reasoning:** use the maximum output length allowed and disclosed by the model creators. Do not substitute 65536, a same-family budget, or the context-window size for an undisclosed output maximum.
 3. **An explicit model-card budget used for the applicable evaluation can override these defaults.** Do not apply another benchmark's budget or choose the highest number mentioned. Keep one top-level `max_new_tokens` (no per-task overrides); conflicting benchmark-specific budgets require separate configs or user confirmation.
 4. Verify that the output budget fits alongside the input, including accumulated multi-turn history. Surface conflicts rather than silently clipping a creator/evaluation budget. Check `finish_reason: length` after the run (`references/run-validation.md`); a higher cap does not fix runaway reasoning.
 
