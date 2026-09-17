@@ -106,7 +106,7 @@ on merge, so restate the whole chain.
 ```yaml
 proxy:
   request_timeout: 3600
-  extra_body: {skip_special_tokens: false}   # generation extras follow SKILL Step 3's provenance/precedence policy
+  extra_body: {skip_special_tokens: false}   # add model-card sampling extras if the card sets them
   model_traffic: {capture_request_body: true}   # FEA-224; adds the upstream request body to the traffic capture that is ALREADY ON by default
   interceptors:
     - {name: system_message, config: {strategy: replace, system_message: "<the OpenHands prompt from bench.yaml>"}}
