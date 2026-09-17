@@ -41,14 +41,10 @@ services:
     container_mounts:                # source dirs MUST pre-exist (pyxis won't create them): ssh <login> 'mkdir -p <lustre>/<user>/.cache/{vllm,huggingface}'
       - ???:/cache/vllm
       - ???:/cache/huggingface
-    # Apply SKILL Step 3, including references/aa-methodology.md for applicable
-    # AA reproduction and its provenance exception. Otherwise use evaluation-
-    # provenanced card values or checkpoint/vLLM defaults; inspect requests.
-    # null is not omission.
-    generation: {}                    # see SKILL Step 3; mirror explicit values in tags
+    generation: {temperature: 1.0, top_p: 0.95}   # from model card (reasoning mode); adjust per card — mandatory lookup (references/model-card-research.md), same as 0.2.6
     proxy:
       request_timeout: 3600                      # ALWAYS set; MUST be >= benchmarks[].solver.agent_kwargs.llm_kwargs.timeout
-      extra_body: {skip_special_tokens: false}   # generation extras follow SKILL Step 3 (including scoped AA policy); mirror in tags
+      extra_body: {skip_special_tokens: false}   # add model-card sampling extras here if the card specifies them; mirror in tags
       model_traffic: {capture_request_body: true}  # per service, never in a shared block
       interceptors:                              # lists REPLACE on merge — restate the whole chain
         # SWE-bench prepends system_message + turn_counter — see swebench_verified.md
@@ -119,8 +115,8 @@ output:
       log_config_params: true
       copy_logs: true
       exclude_patterns: ["shard*", "model_traffic.jsonl"]   # captured request bodies (FEA-224) stay in the run dir
-      description: ???               # '<model> | verified effective sampling + sources | <benchmark> (timeout_strategy=…) | r8'
-      # Sampling tags mirror explicit generation fields; 'omitted' does not assert effective defaults.
+      description: ???               # '<model> | T=1.0 top_p=0.95 | <benchmark> (timeout_strategy=…) | r8'
+      # Sampling tags mirror generation fields.
       # task_name = upstream slug; nemo-evaluator-next-version = eval_image version.
       tags: {framework: vllm, model: "???", checkpoint_path: "???", benchmark: "???", task_name: terminal-bench-2.1, nemo-evaluator-next-version: "0.5.0.1",
-        temperature: 'omitted', top_p: 'omitted'}
+        temperature: '1.0', top_p: '0.95'}
