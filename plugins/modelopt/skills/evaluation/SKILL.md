@@ -128,12 +128,17 @@ Read [Step 7.5](references/launcher-workflow.md#step-75--container-registry-auth
 
 Read [Step 8](references/launcher-workflow.md#step-8--run-evaluation-gated-dry-run--canary--full).
 
-### Step 9 — Verify completed run
+### Step 9 — Verify completed run and MLflow delivery
 
 Read [run-validation.md](references/run-validation.md) before reporting scores:
 validate logs and sample coverage, complete **Timeout and Output-Limit Accounting**
 for every task, and report missing telemetry as unknown. For comparisons, also
 apply its **External Baseline Sanity Check**, then use `compare-results`.
+
+Then apply `references/mlflow-verification.md`: verify each task's actual MLflow
+run, recover failed/incomplete exports from existing results without rerunning
+evaluation, and report evaluation and export outcomes separately. This gate also
+applies after nel-next's explicit `mlflow-push`.
 
 ---
 
