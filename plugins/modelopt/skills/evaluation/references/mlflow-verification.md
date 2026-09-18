@@ -5,6 +5,20 @@ per invocation/task after run validation, before handoff or cleanup. Use
 `launching-evals` to locate existing results and `accessing-mlflow` to query the
 tracking server; those vendored skills remain unchanged.
 
+## Before upload
+
+Before any upload (automatic or manual), secret-scan all outgoing artifacts,
+including result bundles, configs and logs; redact credentials, tokens,
+authorization headers, and secret-bearing URLs. Never upload `.env`/secret files.
+Preserve non-secret methodology/provenance in sanitized copies; if safe upload
+cannot be established, report export blocked.
+
+Before submission, if generated artifacts cannot be checked before automatic
+upload, disable auto-export (`execution.auto_export.destinations: []` for NEL
+0.2.6) for both canary and full runs. Keep the MLflow export settings for checked,
+sanitized manual delivery from existing results below. A post-run scan cannot
+satisfy this prerequisite: 0.2.6 submits its exporter without an agent-review pause.
+
 ## Verify before exporting again
 
 1. Record the invocation ID, task/job identity, evaluation outcome, and result
@@ -51,15 +65,14 @@ replacement; do not delete the original without authorization. After recovery,
 repeat the full verification above. Export exit code zero alone is insufficient.
 
 **nel-next:** Preserve the explicit `nel-next.sh mlflow-push -r <run_id> -c <cfg>`
-workflow in `nel-next.md`; SLURM does not auto-export there. Verify the pushed
-runs with the same gate. Do not substitute the legacy launcher's export command.
+workflow in `nel-next.md`; SLURM does not auto-export there. The wrapper stages
+only `eval-*.json`, not logs; `copy_logs=true` cannot supply unstaged evidence.
+Verify the pushed runs, then attach missing sanitized configs/logs or compact
+diagnostic evidence to the identified runs using a supported MLflow artifact
+upload. Recheck their contents; if evidence is unavailable, report incomplete or
+blocked delivery. Do not substitute the legacy launcher's export command.
 
 ## Safe evidence and blocked delivery
-
-Before any upload (automatic or manual), secret-scan configs and logs and redact
-credentials, tokens, authorization headers, and secret-bearing URLs. Never upload
-`.env`/secret files. Preserve non-secret methodology/provenance in sanitized
-copies; if safe upload cannot be established, report export blocked.
 
 If recovery remains blocked, preserve a **small, sanitized** evidence bundle in
 an approved durable location before mandated cleanup: invocation/task and job

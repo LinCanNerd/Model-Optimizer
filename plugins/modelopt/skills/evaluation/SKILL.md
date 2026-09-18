@@ -43,7 +43,7 @@ for one, do **not** add it to a 0.2.6 `evaluation.tasks` list — instead:
 1. Read **`references/nel-next.md`** (shared: venv, schema, AWS creds, architecture, timeout strategy, MLflow, run flow) + the per-benchmark recipe `recipes/tasks/aa_next/{terminal_bench_2_1,swebench_verified}.md`; start from `recipes/examples/example_eval_next.yaml`.
 2. Isolated nel-next venv: `"$SKILL_DIR/scripts/nel-next.sh" --setup-only` (keeps 0.2.6 `nel` untouched).
 3. Run **`modelopttools:eval-config`** (Step 3b) to write the AWS-sandbox creds + harbor infra rows (`${NEL_NEXT_EVAL_IMAGE}`, `${HARBOR_*_ECR_REPOSITORY}`, `${HARBOR_ECS_REGION}`) into `.env`; always include the `output.export_config.mlflow` block.
-4. Dry-run → canary → full (`nel-next.sh eval run`), then **push to MLflow** — SLURM doesn't auto-export, so run `nel-next.sh mlflow-push -r <run_id> -c <cfg>` after (config-driven; see `references/nel-next.md`).
+4. Follow `references/nel-next.md`'s run flow: dry-run → canary → full → checked MLflow push → delivery verification.
 
 Steps 1–9 below are currently validated with 0.2.6 — use them for everything else.
 
@@ -137,8 +137,7 @@ apply its **External Baseline Sanity Check**, then use `compare-results`.
 
 Then apply `references/mlflow-verification.md`: verify each task's actual MLflow
 run, recover failed/incomplete exports from existing results without rerunning
-evaluation, and report evaluation and export outcomes separately. This gate also
-applies after nel-next's explicit `mlflow-push`.
+evaluation, and report evaluation and export outcomes separately.
 
 ---
 

@@ -73,6 +73,17 @@
     ]
   },
   {
+    "name": "mlflow-pre-submit-safeguard",
+    "skills": ["evaluation"],
+    "query": "Launch using my existing NEL 0.2.6 config with MLflow auto-export enabled. Generated configs and logs cannot be checked before the CPU exporter uploads them.",
+    "files": [],
+    "expected_behavior": [
+      "Applies the common Step 8 pre-submit safeguard despite skipping config generation; the same gate applies to shortcut-generated configs",
+      "Sets execution.auto_export.destinations to [] before both canary and full submission, retaining MLflow export settings",
+      "Plans checked, sanitized manual delivery from existing results rather than relying on a post-upload scan"
+    ]
+  },
+  {
     "name": "mlflow-auto-export-verification",
     "skills": ["evaluation"],
     "query": "My full evaluation succeeded. The CPU auto-export is still running and MLflow has a same-named canary run. Finish the handoff once export completes.",
@@ -114,11 +125,14 @@
   {
     "name": "nel-next-explicit-push-verification",
     "skills": ["evaluation"],
-    "query": "My nel-next SLURM evaluation completed. Deliver verified MLflow results.",
+    "query": "My nel-next SLURM evaluation completed. The merged bundles are safe to upload, but the wrapper stages only eval-*.json; logs remain on the cluster. Deliver verified MLflow results.",
     "files": [],
     "expected_behavior": [
       "Preserves the explicit nel-next.sh mlflow-push -r <run_id> -c <cfg> workflow rather than expecting SLURM auto-export or substituting legacy export syntax",
-      "Verifies each pushed run by run/bundle job identity, scores, configuration, and required diagnostics before returning actual URLs"
+      "Checks outgoing bundles and export metadata before pushing and follows the verification gate directly from the nel-next run flow, without relying on excluded Steps 1-9",
+      "Verifies each pushed run by run/bundle job identity, scores, configuration, and required diagnostics before returning actual URLs",
+      "Attaches missing sanitized diagnostic evidence to the identified runs and rechecks contents; does not assume copy_logs=true uploads unstaged logs",
+      "Reports incomplete or blocked delivery if required evidence cannot be delivered, without rerunning evaluation"
     ]
   },
   {
@@ -127,6 +141,7 @@
     "query": "Evaluate my NVFP4 checkpoint on the AA suite including SciCode on SLURM",
     "files": [],
     "expected_behavior": [
+      "Applies Step 8's pre-upload safeguard on the AA shortcut path, disabling auto-export before canary and full submission if generated artifacts cannot be checked before upload",
       "Keeps num_repeats at 1 and plans at least 8 independent SciCode submissions instead",
       "Re-submits SciCode alone with -t ns_scicode rather than re-running the whole suite",
       "Reports the SciCode score as the mean of the pooled runs with standard error and run count",
