@@ -66,8 +66,7 @@ Ask the 5 questions via AskUserQuestion (categories must match `nel skills build
 
 1. **Execution:** Local / SLURM
 2. **Deployment:** None (External) / vLLM / SGLang / NIM / TRT-LLM. Prefer vLLM unless the user/card says otherwise.
-3. **Auto-export:** None / MLflow / wandb. Before enabling uploads, apply the
-   config/log secret-scanning and redaction safeguards in `references/mlflow-verification.md`.
+3. **Auto-export:** None / MLflow / wandb.
 4. **Model type:** Base / Chat / Reasoning
 5. **Benchmarks** (multi-select): standard / code / math_reasoning / safety / multilingual
 
@@ -411,6 +410,10 @@ Add credentials per the common skill's `slurm-setup.md` §6 if missing. If you c
 ### Step 8 — Run evaluation (gated dry-run → canary → full)
 
 Run directly when the user asked to launch; otherwise ask before submitting.
+
+**Before submitting any canary or full run** (including shortcut and existing
+configs), apply `references/mlflow-verification.md#before-upload`: disable
+auto-export if generated artifacts cannot be checked before automatic upload.
 
 **Env setup:** `.env` is normally already created and filled back in Step 1 (via `modelopttools:eval-config`), at the **workspace root** — the dir you run `nel` from, not under the skill dir. Ensure it exists and source it — do **not** clobber an existing `.env`:
 
