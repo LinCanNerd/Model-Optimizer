@@ -51,6 +51,23 @@ _MTP_MODELS = weakref.WeakSet()
 _MTP_FORWARD_MODELS = weakref.WeakSet()
 
 
+def _normalize_mtp_block_types(block_types, mixer_types):
+    """Normalize checkpoint attention names to the installed Transformers registry."""
+    aliases = {"attention": "full_attention", "full_attention": "attention"}
+    normalized = []
+    for block_type in block_types:
+        if block_type in mixer_types:
+            normalized.append(block_type)
+        elif aliases.get(block_type) in mixer_types:
+            normalized.append(aliases[block_type])
+        else:
+            raise ValueError(
+                f"Unsupported NemotronH MTP block type {block_type!r}; "
+                f"available mixer types: {sorted(mixer_types)}"
+            )
+    return normalized
+
+
 def _has_nemotron_h_mtp(checkpoint_path: str) -> bool:
     """Return whether a local checkpoint contains the flattened NemotronH MTP tail."""
     try:
@@ -73,6 +90,7 @@ def prepare_for_loading(checkpoint_path: str, trust_remote_code: bool) -> bool:
     import torch
     from transformers.dynamic_module_utils import get_class_from_dynamic_module
     from transformers.models.nemotron_h.modeling_nemotron_h import (
+        MIXER_TYPES,
         NemotronHBlock,
         NemotronHForCausalLM,
         NemotronHRMSNorm,
@@ -105,10 +123,9 @@ def prepare_for_loading(checkpoint_path: str, trust_remote_code: bool) -> bool:
                 block_types = list(
                     getattr(config, "mtp_layers_block_type", None) or ("attention", "moe")
                 )
-                block_config.layers_block_type = [
-                    "full_attention" if block_type == "attention" else block_type
-                    for block_type in block_types
-                ]
+                block_config.layers_block_type = _normalize_mtp_block_types(
+                    block_types, MIXER_TYPES
+                )
                 self.layers = torch.nn.ModuleList(
                     [
                         NemotronHBlock(block_config, layer_idx)
