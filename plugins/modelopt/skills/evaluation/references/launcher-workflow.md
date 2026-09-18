@@ -66,7 +66,8 @@ Ask the 5 questions via AskUserQuestion (categories must match `nel skills build
 
 1. **Execution:** Local / SLURM
 2. **Deployment:** None (External) / vLLM / SGLang / NIM / TRT-LLM. Prefer vLLM unless the user/card says otherwise.
-3. **Auto-export:** None / MLflow / wandb
+3. **Auto-export:** None / MLflow / wandb. Before enabling uploads, apply the
+   config/log secret-scanning and redaction safeguards in `references/mlflow-verification.md`.
 4. **Model type:** Base / Chat / Reasoning
 5. **Benchmarks** (multi-select): standard / code / math_reasoning / safety / multilingual
 
