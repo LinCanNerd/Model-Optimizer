@@ -46,9 +46,15 @@ from fla.ops.gated_delta_rule.wy_fast import prepare_wy_repr_bwd, recompute_w_u_
 from fla.ops.utils import chunk_local_cumsum
 from fla.ops.utils.constant import RCP_LN2
 from fla.ops.utils.index import prepare_chunk_indices
-from fla.utils import autocast_custom_bwd, autocast_custom_fwd, input_guard
+from fla.utils import (
+    IS_NVIDIA_HOPPER,
+    TRITON_ABOVE_3_4_0,
+    autocast_custom_bwd,
+    autocast_custom_fwd,
+    input_guard,
+)
 
-from modelopt.torch.quantization.linear_attention.validation import validate_gdn_quantizer
+from modelopt.torch.quantization.linear_attention.utils import validate_gdn_quantizer
 from modelopt.torch.quantization.nn import TensorQuantizer
 
 from .fla_chunk_delta_h import (
@@ -636,10 +642,15 @@ def chunk_gated_delta_rule(
     # w_quantizer: dynamic FP8 TensorQuantizer applied to the WY tensor
     # ``w`` of shape [B, T, HV, K] before it multiplies the state, emulating an FP8 x FP8 matmul.
     w_quantizer = kwargs.pop("w_quantizer", None)
+    use_gate_in_kernel = kwargs.pop("use_gate_in_kernel", False)
+    A_log = kwargs.pop("A_log", None)
+    dt_bias = kwargs.pop("dt_bias", None)
+    if kwargs:
+        raise TypeError(f"Unexpected keyword arguments: {', '.join(sorted(kwargs))}")
     if state_qdq not in (STATE_QDQ_OFF, STATE_QDQ_FP8_DYNAMIC):
         raise ValueError(f"`state_qdq` must be 0 or 1, got {state_qdq}.")
     if w_quantizer is not None:
-        validate_gdn_quantizer(w_quantizer, state=False)
+        validate_gdn_quantizer(w_quantizer, name="gdn_w_quantizer")
     if state_qdq and (not q.is_cuda or torch.cuda.get_device_capability(q.device) < (8, 9)):
         raise RuntimeError("GDN state QDQ requires native E4M3 conversion on CUDA SM89 or newer.")
     if (state_qdq != STATE_QDQ_OFF or w_quantizer is not None) and cp_context is not None:
@@ -664,9 +675,6 @@ def chunk_gated_delta_rule(
                 f"The number of initial states is expected to be equal to the number of input sequences, "
                 f"i.e., {len(cu_seqlens) - 1} rather than {initial_state.shape[0]}.",
             )
-    use_gate_in_kernel = kwargs.get("use_gate_in_kernel", False)
-    A_log = kwargs.get("A_log")
-    dt_bias = kwargs.get("dt_bias")
     if use_gate_in_kernel:
         assert A_log is not None, "A_log must be provided when use_gate_in_kernel=True."
     if allow_neg_eigval and not use_beta_sigmoid_in_kernel:
@@ -674,6 +682,14 @@ def chunk_gated_delta_rule(
 
     if scale is None:
         scale = k.shape[-1] ** -0.5
+    # [ModelOpt] Hopper's TileLang backward needs BF16 and equal head counts. Expand outside
+    # custom autograd so repeat_interleave reduces q/k gradients back to the original heads.
+    if IS_NVIDIA_HOPPER and TRITON_ABOVE_3_4_0:
+        if any(x.dtype != torch.bfloat16 for x in (q, k, v)):
+            raise ValueError("Hopper with Triton >= 3.4 requires BF16 q/k/v for GDN training.")
+        if H != HV:
+            q = q.repeat_interleave(HV // H, dim=2)
+            k = k.repeat_interleave(HV // H, dim=2)
     o, final_state = ChunkGatedDeltaRuleFunction.apply(
         q,
         k,
