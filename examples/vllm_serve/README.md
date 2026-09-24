@@ -57,11 +57,7 @@ Step 2: Run the following command, with all supported flag as `vllm serve`:
 python vllm_serve_fakequant.py <model_path> -tp 8 --host 0.0.0.0 --port 8000
 ```
 
-<<<<<<< HEAD
 Hybrid attention/Mamba models such as Nemotron 3 Nano are supported on vLLM 0.26.0, 0.28.0, 0.29.0 and
-=======
-Hybrid attention/Mamba models such as Nemotron 3 Nano are supported on vLLM 0.26.0 and
->>>>>>> 43e7748edd (updated docker for latest version)
 0.30.0. For example, calibrate and serve with NVFP4 KV-cache fakequant as follows:
 
 ```bash
