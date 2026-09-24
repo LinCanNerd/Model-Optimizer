@@ -29,12 +29,14 @@ from modelopt.torch.export.convert_hf_config import convert_hf_quant_config_form
 from modelopt.torch.export.model_utils import TiedWeightMap
 from modelopt.torch.export.quant_utils import (
     fuse_prequant_layernorm,
+    get_activation_scaling_factor,
     postprocess_state_dict,
     sync_tied_input_amax,
 )
 from modelopt.torch.export.unified_export_hf import (
     _add_mtp_exclusions,
     _mtp_prefix_is_quantized,
+    _process_quantized_modules,
     _resolve_export_dtype,
 )
 from modelopt.torch.quantization.nn import TensorQuantizer
@@ -81,6 +83,35 @@ def test_mtp_exclusions_skip_container_and_quantized_subtrees():
     _add_mtp_exclusions(model, quant_config)
 
     assert quant_config["quantization"]["exclude_modules"] == ["language_model.mtp.layers.1*"]
+
+
+def test_mtp_nvfp4_export_preserves_calibrated_input_scale():
+    class _Model(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.language_model = torch.nn.Module()
+            self.language_model.mtp = torch.nn.Module()
+            self.language_model.mtp.layers = torch.nn.ModuleList([torch.nn.Module()])
+            self.language_model.mtp.layers[0].proj = torch.nn.Linear(16, 16, bias=False)
+
+        def forward(self, inputs):
+            return self.language_model.mtp.layers[0].proj(inputs)
+
+    model = _Model()
+    mtq.quantize(
+        model,
+        mtq.NVFP4_DEFAULT_CFG,
+        forward_loop=lambda calibrated: calibrated(torch.randn(2, 16)),
+    )
+    projection = model.language_model.mtp.layers[0].proj
+    expected_scale = get_activation_scaling_factor(projection).squeeze().clone()
+
+    _process_quantized_modules(model, torch.bfloat16)
+    exported = postprocess_state_dict(model.state_dict(), maxbound=448, quantization=None)
+
+    input_scale = "language_model.mtp.layers.0.proj.input_scale"
+    assert input_scale in exported
+    torch.testing.assert_close(exported[input_scale], expected_scale)
 
 
 @pytest.mark.parametrize(
