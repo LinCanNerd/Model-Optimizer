@@ -974,3 +974,4 @@ def test_configure_vllm_attention_quantizers_fp8_bmm2(monkeypatch):
         cfg=build_vllm_attention_quant_cfg(p_format="fp8", v_format="fp8"),
     )
     assert float(reconfigured.v_bmm_quantizer._amax) == 96.0
+
