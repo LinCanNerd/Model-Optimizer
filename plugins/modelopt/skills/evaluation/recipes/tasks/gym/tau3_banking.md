@@ -55,9 +55,10 @@ of the benchmark build — keep it fixed across compared runs.
 
 ## Parallelism
 
-`parallelism: 2048` (canonical) is Gym's total client concurrency. The user simulator sees
-about the same rate, so its rate limit usually binds: lower `parallelism` if the client
-log shows 429s — throttled user turns fail episodes.
+`parallelism` is Gym's total client concurrency. The reviewed runs use the canonical
+`2048`, which admits all 485 episodes at once, so the user simulator sees the full episode
+rate. On a rate-limited endpoint, canary first and lower it until the client log shows no
+429s — throttled user turns fail episodes and depress the score.
 
 ## Canary
 

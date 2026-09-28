@@ -58,3 +58,11 @@ def test_bootstrap_verifies_pin_and_gates_limit():
     assert '[ "$actual_gym_sha" != "$expected_gym_sha" ]' in command
     assert "{% if config.params.limit_samples is not none %}" in command
     assert 'set -- "$@" --limit "{{config.params.limit_samples}}"' in command
+
+
+def test_mlflow_export_keeps_logs_private():
+    # The user-simulator key is expanded into Gym's argv; keep the exporter defaults
+    # (required artifacts only, no logs) so Gym's own logs are never uploaded.
+    _, export = _block("export")
+    assert "log_logs: true" not in export
+    assert "only_required: false" not in export

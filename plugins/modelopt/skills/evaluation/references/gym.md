@@ -169,10 +169,14 @@ auto-uploading them; drop the suffix only if you actually want them uploaded.
 
 ## num_repeats
 
-**Use 1** unless a task recipe says otherwise, set with a top-level `++num_repeats=1`
-in `common_params` (Tau3-Banking keeps its declared 5 — no override). For
-`type: benchmark` datasets the value each gym config *declares* upstream is a placeholder and the runner decides, so pin it explicitly and
-report `pass@1`. **Do not change repeat counts when aligning to a golden.**
+- **Explicit schema (MRCR):** `ng_e2e_collect_rollouts` treats a `type: benchmark`
+  dataset's declared `num_repeats` as a placeholder, so pin `++num_repeats=1` in
+  `common_params` and report `pass@1`.
+- **Condensed schema (Tau3-Banking):** `gym eval run` applies the benchmark's declared
+  repeats, so set no override and check the count — Tau3's 5 give
+  `num_samples_total == 485` (every reviewed upstream run shows 485).
+
+**Do not change repeat counts when aligning to a golden.**
 
 ## Failure modes to check at canary
 

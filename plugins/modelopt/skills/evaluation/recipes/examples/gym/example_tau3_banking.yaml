@@ -270,8 +270,8 @@ export:
     tracking_uri: ${oc.env:MLFLOW_TRACKING_URI}
     experiment_name: ${oc.env:USER}/CHANGEME-served-model-name
     description: 'CHANGEME-served-model-name | Tau3-Banking | T=1.0, top_p=0.95, 5 repeats'
-    log_logs: true
-    only_required: false
+    # Exporter defaults: upload only the required artifacts, no logs. Keep them — the
+    # user-simulator key is expanded into Gym's argv at run time.
     tags:
       framework: vllm
       model: CHANGEME-served-model-name
