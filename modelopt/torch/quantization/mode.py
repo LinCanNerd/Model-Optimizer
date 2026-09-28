@@ -375,10 +375,15 @@ class BaseCalibrateModeDescriptor(ModeDescriptor):
         sub_caps = capabilities_for(sub_cfg.get("method"), sub_cfg)
         if sub_caps is None:
             return replace(caps, may_write=own_writes | WRITABLE_TOKENS)
+        # Every field where the sub-algorithm can be the *wider* of the two has to travel:
+        # `local_hessian` writes whole modules while `lsq` does not, so keeping lsq's value
+        # would under-declare -- the direction this model treats as unsafe.
         return replace(
             caps,
+            writes_whole_module=caps.writes_whole_module or sub_caps.writes_whole_module,
             may_write=own_writes | sub_caps.may_write,
             requires=caps.requires | sub_caps.requires,
+            invalid_if_present=caps.invalid_if_present | sub_caps.invalid_if_present,
         )
 
     def __init__(self, *args, **kwargs):

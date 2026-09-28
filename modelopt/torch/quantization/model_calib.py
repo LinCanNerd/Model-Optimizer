@@ -821,12 +821,18 @@ def _mse_calibrate_weights(
                 )
                 if cal is None:
                     continue
-                weight_quantizer._calibrator = cal
-                _run_and_load_max_stats(
-                    weight_quantizer, partial(_collect_weight_stats, weight=weight)
-                )
-                if hasattr(cal, "reset"):
-                    cal.reset()
+                # A search calibrator installed for this amax search only; a later stage
+                # that collects stats must not inherit it.
+                previous_calibrator = weight_quantizer._calibrator
+                try:
+                    weight_quantizer._calibrator = cal
+                    _run_and_load_max_stats(
+                        weight_quantizer, partial(_collect_weight_stats, weight=weight)
+                    )
+                    if hasattr(cal, "reset"):
+                        cal.reset()
+                finally:
+                    weight_quantizer._calibrator = previous_calibrator
 
                 pbar.update(1)
     pbar.close()

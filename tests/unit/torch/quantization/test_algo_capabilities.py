@@ -34,9 +34,28 @@ def _known_algorithms():
     )
 
 
-def test_every_registered_algorithm_declares_capabilities():
+def test_every_registered_algorithm_overrides_the_conservative_default():
+    # The base class supplies a pessimistic default, so "not None" is vacuous. What matters is
+    # that a newly added descriptor which forgets to declare fails here, rather than quietly
+    # running with `may_write=WRITABLE_TOKENS` and a weight write-back on every layer.
+    base = BaseCalibrateModeDescriptor._capabilities
     for algo in _known_algorithms():
-        assert capabilities_for(algo) is not None, algo
+        caps = capabilities_for(algo)
+        assert caps is not None, algo
+        assert caps != base, f"{algo} still carries the pessimistic default"
+
+
+def test_calib_mutates_weights_is_derived_per_algorithm():
+    # The behavioural core of the PR: what each algorithm dispatches with.
+    from modelopt.torch.quantization.mode import _writes_weights
+
+    assert _writes_weights("mse", {}) is False
+    assert _writes_weights("max", {}) is False
+    assert _writes_weights("gptq", {}) is True
+    assert _writes_weights("awq_lite", {}) is True
+    # An unrecognized method is assumed to write weights, matching the config-time validator.
+    assert _writes_weights("not_an_algorithm", {}) is True
+    assert _writes_weights(None, {}) is True
 
 
 def test_a_custom_algorithm_inherits_conservative_capabilities():

@@ -161,6 +161,8 @@ from modelopt.torch.opt.config import ModeloptBaseConfig, ModeloptField
 from modelopt.torch.opt.config_loader import load_config
 from modelopt.torch.utils.network import ConstructorLike
 
+from .algo_cfg import WEIGHT, capabilities_for
+
 
 class QuantizerCfgEntry(ModeloptBaseConfig):
     """A single entry in a ``quant_cfg`` list."""
@@ -840,16 +842,15 @@ class QuantizeAlgorithmConfig(ModeloptBaseConfig):
         """Reject ``calib_mutates_weights=False`` for an algorithm that writes weights.
 
         The fact is sourced from the algorithm's declared capabilities rather than mirrored
-        into a flag here, so there is one statement of it. The import is function-local
-        because this module is imported *by* the capability model; only an explicit ``False``
-        -- never the derived default -- reaches the lookup, so it cannot fire while that
-        module is still loading.
+        into a flag here, so there is one statement of it.
+
+        Capabilities are resolved with this config's own kwargs, and an unrecognized method is
+        rejected rather than waved through, so this agrees with ``mode._writes_weights``
+        instead of accepting a config that then fails at conversion time.
         """
         if self.layerwise.calib_mutates_weights is False:
-            from .algo_cfg import WEIGHT, capabilities_for
-
-            caps = capabilities_for(self.method)
-            if caps is not None and WEIGHT in caps.may_write:
+            caps = capabilities_for(self.method, self.model_dump())
+            if caps is None or WEIGHT in caps.may_write:
                 raise ValueError(
                     f"Algorithm '{self.method}' mutates layer weights in-place; "
                     "calib_mutates_weights=False would lose those updates on resume. "

@@ -34,9 +34,10 @@ class AlgoCapabilities:
     #: Role this algorithm *improves*. Narrower than what it writes: weight-side algorithms
     #: also seed input amax via an internal `max_calibrate`, which `may_write` records.
     refines: Literal["weight", "input", "both"]
-    #: Tokens this algorithm reads. ``weight`` and ``acts`` are ambient, so never counted.
-    #: Not a precondition: every algorithm listing ``weight_amax`` also seeds its own via an
-    #: internal ``max_calibrate``, so an algorithm run on its own is fine.
+    #: Tokens this algorithm reads. ``weight`` and ``acts`` say it needs materialized weights
+    #: or a forward pass; the ``*_amax`` and ``pre_quant_scale`` tokens are state another
+    #: algorithm produces. Not a precondition -- every algorithm listing ``weight_amax`` also
+    #: seeds its own via an internal ``max_calibrate``, so running it alone is fine.
     requires: frozenset[str] = frozenset()
     #: Tokens this may write. An *upper* bound: it may write fewer on a given model (smoothquant
     #: only touches INT8 layers), never more. Over-declaring is safe for conflict detection and
