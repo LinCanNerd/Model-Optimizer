@@ -17,6 +17,8 @@ This directory contains examples of using Model Optimizer with the [NeMo Megatro
 
 > [!TIP]
 > Checkout the [Nemotron-3-Nano-30B-A3B pruning + distillation (with data blend prep) + quantization tutorial](tutorials/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16/README.md) for a complete end-to-end workflow using Megatron-Bridge!
+>
+> Or the [Qwen3.6-35B-A3B W4A4 NVFP4 + QAD tutorial](tutorials/Qwen3.6-35B-A3B/README.md) for an end-to-end quantization-aware distillation workflow.
 
 ## Pre-Requisites
 
@@ -120,7 +122,24 @@ For a vision-language model (e.g. Qwen3.5-VL, Gemma3-VL), `quantize.py` automati
 - A **text** dataset runs text-only calibration of the language model (vision tower idle).
 
 > [!NOTE]
-> HuggingFace unified export (`export_quantized_megatron_to_hf.py`) of a quantized VLM is not yet supported; the quantized VLM is saved in Megatron checkpoint format only.
+> HuggingFace unified export (`export_quantized_megatron_to_hf.py`) of a quantized VLM covers **Qwen3-VL** and **Qwen3.5-VL**. Other VLMs such as Gemma3-VL are saved in Megatron checkpoint format only.
+
+### Tracking runs with MLflow
+
+Set MLflow's own `MLFLOW_TRACKING_URI`, or pass `--mlflow <tracking-uri>`, to record a `quantize.py` run on an MLflow server:
+
+```bash
+torchrun --nproc_per_node 2 quantize.py \
+    --hf_model_name_or_path Qwen/Qwen3-8B \
+    --recipe general/ptq/nvfp4_default-kv_fp8 \
+    --tp_size 2 \
+    --export_megatron_path /tmp/Qwen3-8B-NVFP4-megatron \
+    --mlflow https://<your-mlflow-server>/
+```
+
+The run opens *before* the model loads, so a bad URI fails in seconds rather than after a full calibration. Only the master rank uploads: the invocation, every argument as a searchable param, the resolved recipe, that rank's log and the quantizer summary — plus `.experiment.json` written into `--export_megatron_path` once the checkpoint is saved, so a checkpoint on disk names the run that produced it. A failed run is still recorded, with its traceback.
+
+`--mlflow_experiment` defaults to `$USER/megatron_bridge_quantize/<model basename>-<recipe name, or --quant_cfg>`, and `--mlflow_run_name` to the UTC start time. Authentication uses MLflow's own environment variables. See the [`hf_ptq` README](../hf_ptq/README.md#tracking-runs-with-mlflow) for the full artifact list and the `$MLFLOW_TRACKING_URI` semantics.
 
 ## Distillation
 
