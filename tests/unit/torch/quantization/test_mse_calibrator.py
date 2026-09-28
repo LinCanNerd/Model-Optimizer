@@ -346,9 +346,6 @@ class TestMseCalibrator:
         # reusable one it silently returns an MSE search result where a plain max was asked
         # for. Restoring is what makes `algorithm=['max','mse','max']` correct, not just
         # non-crashing.
-        import modelopt.torch.quantization as mtq
-        from modelopt.torch.quantization.nn import TensorQuantizer
-
         torch.manual_seed(0)
         model = torch.nn.Sequential(torch.nn.Linear(32, 16, bias=False))
         mtq.quantize(

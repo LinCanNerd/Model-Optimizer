@@ -367,20 +367,33 @@ class BaseCalibrateModeDescriptor(ModeDescriptor):
         """Fold a delegated weight-scale algorithm's capabilities into ``caps``.
 
         `lsq` and `nvfp4_act_headroom` both run a configurable algorithm before their own work,
-        so what they read and write is theirs plus that algorithm's, and both fields travel.
+        so what they read and write is theirs plus that algorithm's.
+
+        ``method`` is carried over explicitly: it is a defaulted field, so ``exclude_unset``
+        drops it and the sub-algorithm would be unidentifiable -- taking the unknown-algorithm
+        fallback and discarding the fold entirely. The config serializers for these fields do
+        the same thing for the same reason.
         """
         if isinstance(sub, ModeloptBaseConfig):
-            sub = sub.model_dump(exclude_unset=True)
+            sub = {"method": sub.method, **sub.model_dump(exclude={"method"}, exclude_unset=True)}
         sub_cfg = sub if isinstance(sub, dict) else {"method": sub}
         sub_caps = capabilities_for(sub_cfg.get("method"), sub_cfg)
         if sub_caps is None:
-            return replace(caps, may_write=own_writes | WRITABLE_TOKENS)
-        # Every field where the sub-algorithm can be the *wider* of the two has to travel:
-        # `local_hessian` writes whole modules while `lsq` does not, so keeping lsq's value
-        # would under-declare -- the direction this model treats as unsafe.
+            # Nothing is known about the sub-algorithm, so assume the widest on every axis.
+            return replace(
+                caps,
+                writes_whole_module=True,
+                scopable=False,
+                may_write=own_writes | WRITABLE_TOKENS,
+            )
+        # Each field takes whichever of the two is the more conservative claim: wider for what
+        # it may touch, narrower for what it can be restricted to. `local_hessian` writes whole
+        # modules while `lsq` does not, so keeping lsq's value would under-declare -- the
+        # direction this model treats as unsafe.
         return replace(
             caps,
             writes_whole_module=caps.writes_whole_module or sub_caps.writes_whole_module,
+            scopable=caps.scopable and sub_caps.scopable,
             may_write=own_writes | sub_caps.may_write,
             requires=caps.requires | sub_caps.requires,
             invalid_if_present=caps.invalid_if_present | sub_caps.invalid_if_present,

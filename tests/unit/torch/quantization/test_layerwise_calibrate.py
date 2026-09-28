@@ -29,8 +29,10 @@ from modelopt.torch.quantization.model_calib import layerwise_calibrate
 from modelopt.torch.quantization.nn import TensorQuantizer
 from modelopt.torch.quantization.utils.layerwise_calib import (
     LayerActivationCollector,
+    _CheckpointState,
     _OutsideQuantizerCalibrator,
     _SkipLayer,
+    _write_manifest,
 )
 
 
@@ -1352,7 +1354,6 @@ def test_resume_adopts_a_conservative_checkpoint_value(tmp_path):
     and discard hours of completed layers. True is the conservative value -- it writes the
     full layer state -- so the resume adopts it and keeps one format for the whole run.
     """
-    from modelopt.torch.quantization.utils.layerwise_calib import _CheckpointState, _write_manifest
 
     ckpt = str(tmp_path / "ckpt")
     os.makedirs(ckpt, exist_ok=True)
@@ -1378,7 +1379,6 @@ def test_resume_adopts_a_conservative_checkpoint_value(tmp_path):
 
 def test_resume_still_rejects_the_unsafe_direction(tmp_path):
     """Manifest False, new run True: completed layers lack the weights this run needs."""
-    from modelopt.torch.quantization.utils.layerwise_calib import _CheckpointState, _write_manifest
 
     ckpt = str(tmp_path / "ckpt")
     os.makedirs(ckpt, exist_ok=True)

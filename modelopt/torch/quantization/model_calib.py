@@ -2136,6 +2136,11 @@ def layerwise_calibrate(
         calib_mutates_weights=calib_mutates_weights,
         save_layer_state=exporter is None,
     )
+    if ckpt is not None:
+        # `from_folder` may adopt the checkpoint's more conservative value on resume, so take
+        # the resolved one back: the write-back decision below and what gets saved per layer
+        # are two halves of the same choice and must not drift apart.
+        calib_mutates_weights = ckpt.calib_mutates_weights
     start_layer = ckpt.start_layer if ckpt else 0
 
     if exporter is not None and _reconcile_export_with_resume(

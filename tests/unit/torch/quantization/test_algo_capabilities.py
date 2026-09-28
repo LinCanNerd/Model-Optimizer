@@ -20,9 +20,19 @@ from typing import Literal
 import pytest
 from pydantic import ValidationError
 
-from modelopt.torch.quantization.algo_cfg import ACTS, WEIGHT, WRITABLE_TOKENS, capabilities_for
-from modelopt.torch.quantization.config import QuantizeAlgorithmConfig
-from modelopt.torch.quantization.mode import BaseCalibrateModeDescriptor, CalibrateModeRegistry
+from modelopt.torch.quantization.algo_cfg import (
+    ACTS,
+    WEIGHT,
+    WRITABLE_TOKENS,
+    AlgoCapabilities,
+    capabilities_for,
+)
+from modelopt.torch.quantization.config import LocalHessianCalibConfig, QuantizeAlgorithmConfig
+from modelopt.torch.quantization.mode import (
+    BaseCalibrateModeDescriptor,
+    CalibrateModeRegistry,
+    _writes_weights,
+)
 
 
 def _known_algorithms():
@@ -47,8 +57,6 @@ def test_every_registered_algorithm_overrides_the_conservative_default():
 
 def test_calib_mutates_weights_is_derived_per_algorithm():
     # The behavioural core of the PR: what each algorithm dispatches with.
-    from modelopt.torch.quantization.mode import _writes_weights
-
     assert _writes_weights("mse", {}) is False
     assert _writes_weights("max", {}) is False
     assert _writes_weights("gptq", {}) is True
@@ -109,6 +117,37 @@ def test_lsq_only_reads_activations_when_its_sub_algorithm_does():
     assert (
         ACTS in capabilities_for("lsq", {"scale_algorithm": {"method": "local_hessian"}}).requires
     )
+
+
+def test_a_sub_algorithm_given_as_a_config_object_folds_the_same_as_a_dict():
+    # `method` is a defaulted field, so `model_dump(exclude_unset=True)` drops it and the
+    # sub-algorithm becomes unidentifiable -- taking the unknown-algorithm fallback and
+    # silently discarding the fold. The two spellings must agree.
+    as_object = capabilities_for("lsq", {"scale_algorithm": LocalHessianCalibConfig()})
+    as_dict = capabilities_for("lsq", {"scale_algorithm": {"method": "local_hessian"}})
+    assert as_object == as_dict
+    assert ACTS in as_object.requires, "sub-algorithm's reads were dropped"
+    assert WEIGHT not in as_object.may_write, "fell through to the unknown-algorithm fallback"
+
+
+@pytest.mark.parametrize("sub", [{"method": "not_an_algorithm"}, {"method": "local_hessian"}])
+def test_a_delegating_algorithm_is_no_more_scopable_than_its_sub_algorithm(sub):
+    # `scopable=False` is the restrictive value, so it has to travel: a delegating algorithm
+    # cannot be scoped more finely than the algorithm it runs first. No shipped pair exercises
+    # this yet -- both delegating algorithms are already unscopable and every reachable
+    # sub-algorithm is scopable -- so the fold is called directly with a scopable outer.
+    outer = AlgoCapabilities(
+        writes_whole_module=False, refines="weight", may_write=frozenset(), scopable=True
+    )
+    folded = BaseCalibrateModeDescriptor._with_sub_algorithm(outer, sub, frozenset())
+
+    if sub["method"] == "not_an_algorithm":
+        assert not folded.scopable, "an unknown sub-algorithm must not stay scopable"
+        assert folded.writes_whole_module, "an unknown sub-algorithm must be whole-module"
+    else:
+        # local_hessian is scopable but writes whole modules.
+        assert folded.scopable
+        assert folded.writes_whole_module, "sub-algorithm's whole-module write was dropped"
 
 
 def test_a_delegating_algorithm_falls_back_to_the_conservative_upper_bound():
