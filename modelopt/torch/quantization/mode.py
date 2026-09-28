@@ -361,13 +361,13 @@ class BaseCalibrateModeDescriptor(ModeDescriptor):
         return cls._capabilities
 
     @classmethod
-    def _with_sub_algorithm(
-        cls, caps: AlgoCapabilities, sub: Any, own_writes: frozenset[str]
-    ) -> AlgoCapabilities:
+    def _with_sub_algorithm(cls, caps: AlgoCapabilities, sub: Any) -> AlgoCapabilities:
         """Fold a delegated weight-scale algorithm's capabilities into ``caps``.
 
         `lsq` and `nvfp4_act_headroom` both run a configurable algorithm before their own work,
-        so what they read and write is theirs plus that algorithm's.
+        so what they read and write is theirs plus that algorithm's. Each field takes whichever
+        of the two is the more conservative claim, including ``refines``: a headroom stage whose
+        sub-algorithm searches the weight range improves both roles, not just its own.
 
         ``method`` is carried over explicitly: it is a defaulted field, so ``exclude_unset``
         drops it and the sub-algorithm would be unidentifiable -- taking the unknown-algorithm
@@ -384,7 +384,7 @@ class BaseCalibrateModeDescriptor(ModeDescriptor):
                 caps,
                 writes_whole_module=True,
                 scopable=False,
-                may_write=own_writes | WRITABLE_TOKENS,
+                may_write=caps.may_write | WRITABLE_TOKENS,
             )
         # Each field takes whichever of the two is the more conservative claim: wider for what
         # it may touch, narrower for what it can be restricted to. `local_hessian` writes whole
@@ -393,8 +393,9 @@ class BaseCalibrateModeDescriptor(ModeDescriptor):
         return replace(
             caps,
             writes_whole_module=caps.writes_whole_module or sub_caps.writes_whole_module,
+            refines=caps.refines if caps.refines == sub_caps.refines else "both",
             scopable=caps.scopable and sub_caps.scopable,
-            may_write=own_writes | sub_caps.may_write,
+            may_write=caps.may_write | sub_caps.may_write,
             requires=caps.requires | sub_caps.requires,
             invalid_if_present=caps.invalid_if_present | sub_caps.invalid_if_present,
         )
@@ -572,7 +573,6 @@ class NVFP4ActHeadroomCalibrateModeDescriptor(BaseCalibrateModeDescriptor):
         return cls._with_sub_algorithm(
             cls._capabilities,
             cfg.get("weight_scale_algorithm") or {"method": "max"},
-            frozenset({INPUT_AMAX, WEIGHT_AMAX}),
         )
 
 
@@ -779,5 +779,4 @@ class LSQModeDescriptor(BaseCalibrateModeDescriptor):
         return cls._with_sub_algorithm(
             cls._capabilities,
             cfg.get("scale_algorithm") or {"method": "mse"},
-            frozenset({WEIGHT_AMAX, INPUT_AMAX}),
         )

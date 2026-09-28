@@ -31,17 +31,23 @@ from modelopt.torch.quantization.config import LocalHessianCalibConfig, Quantize
 from modelopt.torch.quantization.mode import (
     BaseCalibrateModeDescriptor,
     CalibrateModeRegistry,
+    NVFP4ActHeadroomCalibrateModeDescriptor,
     _writes_weights,
 )
 
 
 def _known_algorithms():
-    names = getattr(CalibrateModeRegistry, "_name2descriptor", {})
-    return sorted(
+    # Direct attribute access, not `getattr(..., {})`: if this private registry field is ever
+    # renamed, that should surface as an AttributeError rather than an empty list that makes
+    # every loop below pass vacuously.
+    names = CalibrateModeRegistry._name2descriptor
+    algos = sorted(
         n.removesuffix("_calibrate")
         for n in names
         if n.endswith("_calibrate") and not n.startswith("_")
     )
+    assert algos, "registry lookup found no algorithms"
+    return algos
 
 
 def test_every_registered_algorithm_overrides_the_conservative_default():
@@ -139,7 +145,7 @@ def test_a_delegating_algorithm_is_no_more_scopable_than_its_sub_algorithm(sub):
     outer = AlgoCapabilities(
         writes_whole_module=False, refines="weight", may_write=frozenset(), scopable=True
     )
-    folded = BaseCalibrateModeDescriptor._with_sub_algorithm(outer, sub, frozenset())
+    folded = BaseCalibrateModeDescriptor._with_sub_algorithm(outer, sub)
 
     if sub["method"] == "not_an_algorithm":
         assert not folded.scopable, "an unknown sub-algorithm must not stay scopable"
@@ -148,6 +154,31 @@ def test_a_delegating_algorithm_is_no_more_scopable_than_its_sub_algorithm(sub):
         # local_hessian is scopable but writes whole modules.
         assert folded.scopable
         assert folded.writes_whole_module, "sub-algorithm's whole-module write was dropped"
+
+
+def test_the_fold_reads_the_outer_algorithm_s_own_writes():
+    # `may_write` comes from `caps`, not a literal restated at the call site: widening a
+    # descriptor's declaration must not need a second edit somewhere else to take effect.
+    outer = AlgoCapabilities(
+        writes_whole_module=False,
+        refines="weight",
+        may_write=frozenset({"a_made_up_token"}),
+        scopable=True,
+    )
+    folded = BaseCalibrateModeDescriptor._with_sub_algorithm(outer, {"method": "mse"})
+    assert "a_made_up_token" in folded.may_write, "the outer algorithm's own writes were dropped"
+
+
+def test_a_delegating_algorithm_refines_both_roles_when_its_sub_algorithm_differs():
+    # `nvfp4_act_headroom` targets the activation scale, but the algorithm it delegates weight
+    # scales to is exactly what improves the weight range -- the stage refines both. Its own
+    # static declaration still says "input"; the effective value is what a plan reads.
+    assert NVFP4ActHeadroomCalibrateModeDescriptor._capabilities.refines == "input"
+    assert capabilities_for("mse").refines == "weight"
+    folded = capabilities_for("nvfp4_act_headroom", {"weight_scale_algorithm": {"method": "mse"}})
+    assert folded.refines == "both"
+    # Matching roles stay put rather than widening to "both".
+    assert capabilities_for("lsq", {"scale_algorithm": {"method": "mse"}}).refines == "weight"
 
 
 def test_a_delegating_algorithm_falls_back_to_the_conservative_upper_bound():

@@ -749,10 +749,14 @@ class _CheckpointState:
             # mismatch, because the completed layers lack the weights this run would need.
             ckpt_mutates = manifest.get("calib_mutates_weights")
             if ckpt_mutates is True and calib_mutates_weights is False:
+                # No "pass it explicitly to override" advice here: `wrapped_calib_func`
+                # resolves unset -> derived before this point, so an explicit False and a
+                # derived False are indistinguishable by the time we see them.
                 warnings.warn(
                     "Checkpoint was written with calib_mutates_weights=True; keeping that for "
-                    "this resume so the checkpoint stays one format. Pass "
-                    "layerwise.calib_mutates_weights explicitly to override."
+                    "this resume so the checkpoint keeps one format. The only cost is the "
+                    "per-layer full-state write this run would otherwise have skipped.",
+                    stacklevel=2,
                 )
                 calib_mutates_weights = True
 
