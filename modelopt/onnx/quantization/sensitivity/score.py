@@ -150,6 +150,7 @@ def score(
     granularity: str = "op_type",
     metric: str = "kl_div",
     calibration_method: str = "entropy",
+    log_level: str = "info",
     calibration_eps: list[str] = ["cpu", "cuda:0", "trt"],
     op_types_scope: Sequence[str] | None = None,
     work_dir: str | None = None,
@@ -183,6 +184,8 @@ def score(
         metric: One of :class:`Metric` values -- ``"kl_div"`` (default), ``"mse"``, or ``"cos"``.
         calibration_method: Passed through to :func:`modelopt.onnx.quantization.quantize` (defaults
             to ``"entropy"`` for int8/fp8).
+        log_level: Logger level requested by the caller; per-probe chatter is quieted from INFO
+            to WARNING while preserving the per-target progress line.
         calibration_eps: ONNXRuntime execution providers to use for both the reference and the
             per-target forward passes, and for calibration inside :func:`quantize`. Same schema as
             the ``--calibration_eps`` CLI flag.
