@@ -212,6 +212,12 @@ def main():
         default=None,
         help="Optimum and maximum TRT backbone batch",
     )
+    parser.add_argument(
+        "--trt-builder-optimization-level",
+        choices=[str(level) for level in range(6)],
+        default=None,
+        help="TensorRT build optimization level (0 is fastest; default preserves runtime policy)",
+    )
     args = parser.parse_args()
     if (args.height is None) != (args.width is None):
         parser.error("--height and --width must be supplied together")
@@ -329,7 +335,10 @@ def main():
     del backbone
     torch.cuda.empty_cache()
 
-    compilation_args = {"dynamic_shapes": trt_dynamic_shapes}
+    compilation_args = {
+        "dynamic_shapes": trt_dynamic_shapes,
+        "builder_optimization_level": args.trt_builder_optimization_level,
+    }
     if not args.trt_engine_load_path:
         # Compile the TRT engine from the exported ONNX model
         compiled_model = client.ir_to_compiled(onnx_bytes, compilation_args)

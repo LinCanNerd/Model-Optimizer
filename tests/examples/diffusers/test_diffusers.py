@@ -108,6 +108,8 @@ class DiffuserModel(NamedTuple):
             str(image_size),
             "--width",
             str(image_size),
+            "--trt-builder-optimization-level",
+            "0",
             "--trt-opt-batch-size",
             "1" if self.name == "flux-schnell" else "4",
             *(["--max-sequence-length", "64"] if self.name != "sdxl-1.0" else []),
