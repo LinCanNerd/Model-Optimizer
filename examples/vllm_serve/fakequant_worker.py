@@ -125,7 +125,6 @@ def _fakequant_run_prolog_worker(self, mlflow_tracker: FakeQuantMlflowTracker) -
         calibrate_loop = calibrate_fun(calib_dataloader, self)
 
         quant_cfg = get_quant_config(quant_config, model)
-
         # Before calibration, which is the run this artifact is most wanted for if it dies.
         mlflow_tracker.log_quant_config(quant_cfg)
 
