@@ -18,7 +18,9 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "examples" / "llm_qat"))
+sys.path.insert(
+    0, str(Path(__file__).resolve().parents[3] / "examples" / "hugging_face" / "qat_qad")
+)
 
 from dataset_utils import IGNORE_TOKEN_ID, DatasetSourceConfig, make_chat_tokenize_fn
 

@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""MLflow tracking for the vLLM fake-quant server, mirroring ``examples/hf_ptq``.
+"""MLflow tracking for the vLLM fake-quant server, mirroring ``examples/hugging_face/ptq``.
 
 The quantization this example performs happens inside the vLLM **worker** process, not in
 ``vllm_serve_fakequant.py``: the launcher is the API-server frontend, and the engine and its

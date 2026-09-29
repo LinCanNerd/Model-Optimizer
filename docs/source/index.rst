@@ -82,7 +82,7 @@ Release notes, technical updates, examples, and deployment stories from the Mode
    :caption: Getting Started
 
    getting_started/[0-9]*
-   Quick Start: PTQ - PyTorch <https://github.com/NVIDIA/Model-Optimizer/tree/main/examples/hf_ptq>
+   Quick Start: PTQ - PyTorch <https://github.com/NVIDIA/Model-Optimizer/tree/main/examples/hugging_face/ptq>
    Quick Start: PTQ - ONNX <https://github.com/NVIDIA/Model-Optimizer/tree/main/examples/onnx_ptq>
    Quick Start: PTQ - PyTorch to ONNX <https://github.com/NVIDIA/Model-Optimizer/tree/main/examples/torch_onnx>
    Quick Start: PTQ - Windows <https://github.com/NVIDIA/Model-Optimizer/tree/main/examples/windows>

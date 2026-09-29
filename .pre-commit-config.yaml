@@ -135,7 +135,7 @@ repos:
               examples/onnx_ptq/far3d/evaluate.py|
               examples/onnx_ptq/petr/evaluate.py|
               examples/onnx_ptq/trt_runner.py|
-              examples/llm_qat/train.py|
+              examples/hugging_face/qat_qad/train.py|
               examples/llm_sparsity/weight_sparsity/finetune.py|
               examples/specdec_bench/specdec_bench/models/specbench_medusa.py|
               examples/speculative_decoding/main.py|
@@ -166,12 +166,12 @@ repos:
   - repo: local
     hooks:
       - id: generate-arguments-md
-        name: Regenerate examples/llm_qat/ARGUMENTS.md
-        entry: uv run --frozen --extra dev python examples/llm_qat/arguments.py --generate_docs examples/llm_qat/ARGUMENTS.md
+        name: Regenerate examples/hugging_face/qat_qad/ARGUMENTS.md
+        entry: uv run --frozen --extra dev python examples/hugging_face/qat_qad/arguments.py --generate_docs examples/hugging_face/qat_qad/ARGUMENTS.md
         language: system
         files: >-
           (?x)^(
-            examples/llm_qat/arguments\.py|
+            examples/hugging_face/qat_qad/arguments\.py|
             modelopt/torch/distill/plugins/huggingface\.py|
             modelopt/torch/opt/plugins/transformers\.py|
             modelopt/torch/quantization/plugins/transformers_trainer\.py

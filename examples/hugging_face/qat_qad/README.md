@@ -1,4 +1,4 @@
-# Quantization Aware Training (QAT) and Distillation (QAD)
+# Hugging Face Quantization Aware Training (QAT) and Distillation (QAD)
 
 Quantization Aware Training (QAT) improves model accuracy beyond post-training quantization (PTQ) at low precisions (e.g., INT4, FP4 on [NVIDIA Blackwell](https://www.nvidia.com/en-us/data-center/technologies/blackwell-architecture/)). Quantization Aware Distillation (QAD) further improves accuracy by using the original full-precision model as a teacher.
 
@@ -24,13 +24,13 @@ For background on how QAT enables low-precision accuracy recovery, see the [QAT/
 
 ### Prerequisites
 
-Please refer to [hf_ptq/README.md](../hf_ptq/README.md#pre-requisites) for container
+Please refer to [PTQ README](../ptq/README.md#pre-requisites) for container
 recommendations and base ModelOpt installation guidance. For this QAT/QAD example,
 install the Hugging Face dependencies and the example-specific requirements:
 
 ```bash
 pip install -U nvidia-modelopt[hf]
-pip install -r examples/llm_qat/requirements.txt
+pip install -r examples/hugging_face/qat_qad/requirements.txt
 ```
 
 The Qwen3-8B example below requires a minimum of **2 x 80GB GPUs**.
@@ -85,7 +85,7 @@ accelerate launch --config-file configs/accelerate/fsdp2.yaml train.py \
 python export.py --pyt_ckpt_path qwen3-8b-qad-nvfp4 --export_path qwen3-8b-qad-deploy
 ```
 
-Exported checkpoints can be deployed on [TensorRT-LLM](https://github.com/NVIDIA/TensorRT-LLM), [vLLM](https://github.com/vllm-project/vllm), or [SGLang](https://github.com/sgl-project/sglang). See [hf_ptq/README.md](../hf_ptq/README.md#deployment) for deployment instructions. For quick accuracy evaluation without exporting, see [Native Fake-Quantized Evaluation](#native-fake-quantized-evaluation).
+Exported checkpoints can be deployed on [TensorRT-LLM](https://github.com/NVIDIA/TensorRT-LLM), [vLLM](https://github.com/vllm-project/vllm), or [SGLang](https://github.com/sgl-project/sglang). See [PTQ README](../ptq/README.md#deployment) for deployment instructions. For quick accuracy evaluation without exporting, see [Native Fake-Quantized Evaluation](#native-fake-quantized-evaluation).
 
 > [!NOTE]
 > For a minimal end-to-end demo (quantize + train + save in one script), see [simple_qat_train.py](simple_qat_train.py). It runs on a **single GPU** only and is intended as a quick introduction to the QAT flow (without transformer trainer)—not for distributed training.
@@ -97,7 +97,7 @@ Exported checkpoints can be deployed on [TensorRT-LLM](https://github.com/NVIDIA
 > For multi-GPU training (FSDP2, DDP, DeepSpeed), use [train.py](train.py) with `accelerate launch` as shown in the [commands](#qat) above.
 
 > [!TIP]
-> For more performant QAD, please refer to [examples/megatron_bridge/README.md](../megatron_bridge/README.md) for example scripts for PTQ / QAD with Megatron-Bridge which is generally more performant than the Hugging Face scripts.
+> For more performant QAD, please refer to [examples/megatron_bridge/README.md](../../megatron_bridge/README.md) for example scripts for PTQ / QAD with Megatron-Bridge which is generally more performant than the Hugging Face scripts.
 
 ## Background
 
@@ -133,7 +133,7 @@ To learn more, read the [QAT/QAD blog post](https://developer.nvidia.com/blog/ho
 | | **QAT** (without distillation) | **QAD** (with distillation) |
 |-|---------|----------------------|
 | **What it does** | Fine-tunes a quantized model on labeled data | Recovers quantization accuracy using the original model as teacher |
-| **When to use** | The model is already quantized and you want to fine-tune it for a **new task** (e.g., fine-tuning a [GPT-OSS](../gpt-oss/) quantized checkpoint) | You want the **best possible accuracy recovery** after quantization |
+| **When to use** | The model is already quantized and you want to fine-tune it for a **new task** (e.g., fine-tuning a [GPT-OSS](../../gpt-oss/) quantized checkpoint) | You want the **best possible accuracy recovery** after quantization |
 | **Recommended workflow** | Start from a quantized checkpoint, fine-tune with task-specific data | Full-precision fine-tuning first, then QAD to recover quantization loss |
 
 **QAD is Model Optimizer's recommended strategy for accuracy recovery after quantization.** In our experiments, full-precision fine-tuning followed by QAD delivers the best accuracy, especially at aggressive quantization levels (e.g., NVFP4). The optimal balance between QAT and QAD for a given model and task is an active area of research.
@@ -180,7 +180,7 @@ trainer.save_model()
 
 ### Quantization Recipes
 
-Recipes are declarative YAML files that specify the quantization configuration. Built-in recipes are available in [`modelopt_recipes/`](../../modelopt_recipes/):
+Recipes are declarative YAML files that specify the quantization configuration. Built-in recipes are available in [`modelopt_recipes/`](../../../modelopt_recipes/):
 
 ```sh
 # List available built-in recipes
@@ -214,8 +214,8 @@ Built-in recipes support full-model, partial-layer, and mixed-precision quantiza
 
 > Recipes can target different layers or GEMMs with different precisions, such as NVFP4
 > for MLP/MoE GEMMs and FP8 for attention GEMMs or KV cache. See
-> [`modelopt_recipes/general/ptq/`](../../modelopt_recipes/general/ptq/) and
-> [`modelopt_recipes/configs/ptq/`](../../modelopt_recipes/configs/ptq/) for built-in
+> [`modelopt_recipes/general/ptq/`](../../../modelopt_recipes/general/ptq/) and
+> [`modelopt_recipes/configs/ptq/`](../../../modelopt_recipes/configs/ptq/) for built-in
 > options and reusable recipe units.
 
 ### Supported Backends
@@ -301,7 +301,7 @@ There are two types of configs:
 - **Dataset configs** (`configs/dataset/`): Define the dataset blend — sources, `blend_size` (total samples), and `splits` (train/eval/test ratios). These are self-contained and determine what gets cached.
 - **Training configs** (`configs/train/`): Define training hyperparameters plus runtime caps (`train_samples`, `eval_samples`) that subset the pre-built dataset without retriggering caching.
 
-`quantize.py` only needs `--dataset_config` and `--recipe`. `train.py` uses a full training config via `--config`. All arguments can be specified via YAML, CLI flags, or both (CLI overrides YAML). See [ARGUMENTS.md](ARGUMENTS.md) for the full reference, regenerated with `python_pwd examples/llm_qat/arguments.py --generate_docs examples/llm_qat/ARGUMENTS.md`.
+`quantize.py` only needs `--dataset_config` and `--recipe`. `train.py` uses a full training config via `--config`. All arguments can be specified via YAML, CLI flags, or both (CLI overrides YAML). See [ARGUMENTS.md](ARGUMENTS.md) for the full reference, regenerated with `python_pwd examples/hugging_face/qat_qad/arguments.py --generate_docs examples/hugging_face/qat_qad/ARGUMENTS.md`.
 
 ```sh
 # YAML + CLI override
@@ -337,15 +337,15 @@ The cached dataset is stored under `.dataset_cache/tokenized/` by default (confi
 ModelOpt quantized models can be saved and restored without exporting to a deployment platform. This is useful for fast evaluation with fake quantization using standard LLM benchmarks (MMLU, WikiText, etc.). See [HuggingFace checkpointing](https://nvidia.github.io/Model-Optimizer/guides/2_save_load.html#modelopt-save-restore-using-huggingface-checkpointing-apis) for details.
 
 ```sh
-cd ../llm_eval
+cd ../../llm_eval
 
 python lm_eval_hf.py --model hf \
     --tasks mmlu,wikitext \
-    --model_args pretrained=../llm_qat/qwen3-8b-qat-nvfp4 \
+    --model_args pretrained=../hugging_face/qat_qad/qwen3-8b-qat-nvfp4 \
     --batch_size 4
 ```
 
-See [llm_eval/README.md](../llm_eval/README.md) for supported tasks.
+See [llm_eval/README.md](../../llm_eval/README.md) for supported tasks.
 
 ## Pre-Quantized Checkpoints
 
@@ -356,7 +356,7 @@ See [llm_eval/README.md](../llm_eval/README.md) for supported tasks.
 
 - [Roadmap](https://github.com/NVIDIA/Model-Optimizer/issues/1699)
 - [Documentation](https://nvidia.github.io/Model-Optimizer)
-- [Benchmarks](../benchmark.md)
+- [Benchmarks](../../benchmark.md)
 - [Release Notes](https://nvidia.github.io/Model-Optimizer/reference/0_changelog.html)
 - [File a bug](https://github.com/NVIDIA/Model-Optimizer/issues/new?template=1_bug_report.md)
 - [Feature Request](https://github.com/NVIDIA/Model-Optimizer/issues/new?template=2_feature_request.md)

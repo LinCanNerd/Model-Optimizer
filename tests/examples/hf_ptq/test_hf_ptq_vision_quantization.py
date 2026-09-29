@@ -20,7 +20,7 @@ from types import SimpleNamespace
 import pytest
 import torch
 
-_EXAMPLES_DIR = Path(__file__).resolve().parents[3] / "examples" / "hf_ptq"
+_EXAMPLES_DIR = Path(__file__).resolve().parents[3] / "examples" / "hugging_face" / "ptq"
 
 
 @pytest.fixture

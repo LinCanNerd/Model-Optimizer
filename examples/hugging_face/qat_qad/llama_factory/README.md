@@ -94,9 +94,9 @@ The final QAT/QAD model after training is similar in architecture to that of PTQ
 To run QAT/QAD model with TRTLLM, run:
 
 ```sh
-cd ../../hf_ptq
+cd ../../ptq
 
 ./scripts/huggingface_example.sh --model <path-to-QAT/QAD-model> --quant nvfp4
 ```
 
-See more details on deployment of quantized model [here](../../hf_ptq/README.md).
+See more details on deployment of quantized model [here](../../ptq/README.md).

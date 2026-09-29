@@ -181,8 +181,8 @@ You can deploy this real quantized MXFP4 checkpoint just like the original GPT-O
 
 ### Easy QAT from ModelOpt using LLaMA-Factory
 
-ModelOpt provides easy end to end QAT via [LLaMA-Factory](https://github.com/hiyouga/LLaMA-Factory), an open-source repository for LLM/VLM finetuning. Please refer to [LLaMa-Factory QAT example](../llm_qat/llama_factory) for performing QAT on your favorite models.
+ModelOpt provides easy end to end QAT via [LLaMA-Factory](https://github.com/hiyouga/LLaMA-Factory), an open-source repository for LLM/VLM finetuning. Please refer to [LLaMa-Factory QAT example](../hugging_face/qat_qad/llama_factory) for performing QAT on your favorite models.
 
 ### Deployment of ModelOpt QAT/PTQ models beyond GPT-OSS
 
-ModelOpt supports exporting a wide variety of models after QAT/PTQ to TensorRT-LLM, vLLM, SGLang etc. Please refer to [hf_ptq](../hf_ptq).
+ModelOpt supports exporting a wide variety of models after QAT/PTQ to TensorRT-LLM, vLLM, SGLang etc. Please refer to [hf_ptq](../hugging_face/ptq).

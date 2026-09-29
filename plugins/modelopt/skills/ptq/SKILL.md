@@ -11,7 +11,7 @@ description: >-
 
 # ModelOpt Post-Training Quantization
 
-Produce a quantized checkpoint from a pretrained model. **Read `examples/hf_ptq/README.md` first** — it has the support matrix, CLI flags, and accuracy guidance.
+Produce a quantized checkpoint from a pretrained model. **Read `examples/hugging_face/ptq/README.md` first** — it has the support matrix, CLI flags, and accuracy guidance.
 
 Use `quant-recipe-search` for multi-candidate recipe exploration or
 optimization. Use this skill for each selected recipe's PTQ run.
@@ -29,7 +29,7 @@ After completing them you should know:
 
 ## Step 2 — Is the model supported?
 
-Check the support table in `examples/hf_ptq/README.md` for verified HF models.
+Check the support table in `examples/hugging_face/ptq/README.md` for verified HF models.
 
 - **Listed** → supported, use `hf_ptq.py` (step 4A/4B)
 - **Not listed** → read `references/unsupported-models.md` to determine if `hf_ptq.py` can still work or if a custom script is needed (step 4C)
@@ -63,7 +63,7 @@ ls modelopt_recipes/model_type/<model_type>/ptq/ 2>/dev/null  # per-arch; <model
 
 If a model-specific recipe exists, prefer `--recipe <path>` — but **inspect its include/exclude patterns** rather than assuming (e.g. for VLMs, confirm the vision tower is actually excluded).
 
-**If no model-specific recipe**, choose a format based on GPU (details in `examples/hf_ptq/README.md`):
+**If no model-specific recipe**, choose a format based on GPU (details in `examples/hugging_face/ptq/README.md`):
 
 - **Blackwell** (B100/B200/GB200): `nvfp4` variants
 - **Hopper** (H100/H200) or older: `fp8` or `int4_awq`
@@ -90,14 +90,14 @@ For **unlisted models** (4C): run a smoke test first (`--calib_size 4`), wait fo
 - **Text-only LLM PTQ:** Prefer the representative `nemotron-post-training-v3` blend. `modelopt/torch/utils/dataset_utils.py` expands it to seven registered Nemotron SFT domains. Configure Hugging Face credentials where required.
 
   ```bash
-  python examples/hf_ptq/hf_ptq.py ... \
+  python examples/hugging_face/ptq/hf_ptq.py ... \
       --dataset nemotron-post-training-v3
   ```
 
-- **VLM PTQ:** Include image-text calibration with `--calib_with_images`. This path uses `nemotron_vlm_dataset_v2` with the current default subsets `sparsetables`, `plotqa_cot`, and `wiki_en`; `examples/hf_ptq/hf_ptq.py` and `modelopt/torch/utils/vlm_dataset_utils.py` are the source of truth.
+- **VLM PTQ:** Include image-text calibration with `--calib_with_images`. This path uses `nemotron_vlm_dataset_v2` with the current default subsets `sparsetables`, `plotqa_cot`, and `wiki_en`; `examples/hugging_face/ptq/hf_ptq.py` and `modelopt/torch/utils/vlm_dataset_utils.py` are the source of truth.
 
   ```bash
-  python examples/hf_ptq/hf_ptq.py ... \
+  python examples/hugging_face/ptq/hf_ptq.py ... \
       --calib_with_images
   ```
 
@@ -118,9 +118,9 @@ In README table? ─→ YES ──→ SLURM (local or remote)? ──→ LAUNCHE
 
 ```bash
 pip install --no-build-isolation "nvidia-modelopt[hf]"
-pip install -r examples/hf_ptq/requirements.txt
+pip install -r examples/hugging_face/ptq/requirements.txt
 
-python examples/hf_ptq/hf_ptq.py \
+python examples/hugging_face/ptq/hf_ptq.py \
     --pyt_ckpt_path <model> \
     --qformat <format> \
     --calib_size 512 \
@@ -208,7 +208,7 @@ Report the gate result before moving on. Follow the canonical report format and 
 | common skill: `remote-execution.md` | Step 4A/4C only, if target is remote |
 | common skill: `slurm-setup.md` | Step 4A/4C only, if using SLURM manually (not launcher) |
 | `references/slurm-setup-ptq.md` | Step 4A/4C only, PTQ-specific SLURM (container, GPU sizing, FSDP2) |
-| `examples/hf_ptq/README.md` | Step 3: support matrix, CLI flags, accuracy |
+| `examples/hugging_face/ptq/README.md` | Step 3: support matrix, CLI flags, accuracy |
 | `modelopt/torch/quantization/config.py` | Step 3: format definitions |
 | `modelopt/torch/export/model_utils.py` | Step 4C: TRT-LLM export type mapping |
 | `modelopt_recipes/` | Step 3: pre-built recipes |

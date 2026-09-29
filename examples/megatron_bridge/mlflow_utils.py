@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Shared MLflow wiring for the Megatron-Bridge examples, mirroring ``examples/hf_ptq``.
+"""Shared MLflow wiring for the Megatron-Bridge examples, mirroring ``examples/hugging_face/ptq``.
 
 Each script declares what it records as a :class:`~modelopt.torch.utils.mlflow.Tool` beside
 its own flags; this module knows none of them, only how a run is opened and closed here. The

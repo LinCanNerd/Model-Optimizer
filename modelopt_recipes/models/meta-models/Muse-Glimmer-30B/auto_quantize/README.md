@@ -8,7 +8,7 @@ vision tower and unmatched modules remain BF16.
 Use unquantized KV cache and representative text calibration:
 
 ```bash
-python examples/hf_ptq/hf_ptq.py \
+python examples/hugging_face/ptq/hf_ptq.py \
   --pyt_ckpt_path <muse-glimmer-checkpoint> \
   --recipe models/meta-models/Muse-Glimmer-30B/auto_quantize/w4a16_nvfp4_4o6_mixed \
   --kv_cache_qformat none \

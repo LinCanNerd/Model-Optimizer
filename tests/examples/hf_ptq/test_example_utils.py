@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Unit tests for ``examples/hf_ptq/example_utils`` helpers.
+"""Unit tests for ``examples/hugging_face/ptq/example_utils`` helpers.
 
 The per-MTP-convention tests are gone with ``load_mtp_weights``: weights the loader could not
 place are now identified from Transformers' own ``unexpected_keys`` rather than by recognising

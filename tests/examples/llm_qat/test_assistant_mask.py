@@ -21,7 +21,9 @@ from pathlib import Path
 import pytest
 import transformers
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "examples" / "llm_qat"))
+sys.path.insert(
+    0, str(Path(__file__).resolve().parents[3] / "examples" / "hugging_face" / "qat_qad")
+)
 
 from dataset_utils import _chatml_assistant_mask, _supports_chatml_heuristic
 

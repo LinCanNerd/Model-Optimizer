@@ -66,7 +66,7 @@ if [ -d "${MODEL_PATH}" ]; then
 fi
 srun --container-image="${CONTAINER_IMAGE}" \
      --container-mounts="${CONTAINER_MOUNTS}" \
-     --container-workdir=/modelopt/examples/hf_ptq \
+     --container-workdir=/modelopt/examples/hugging_face/ptq \
   bash -c '
     set -euo pipefail
     export PYTHONUNBUFFERED=1 PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True

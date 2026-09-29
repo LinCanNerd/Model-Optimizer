@@ -30,7 +30,7 @@ from modelopt.torch.quantization.config import QuantizeConfig
 
 @pytest.fixture
 def autoquant_utils(monkeypatch):
-    examples_dir = Path(__file__).resolve().parents[3] / "examples" / "hf_ptq"
+    examples_dir = Path(__file__).resolve().parents[3] / "examples" / "hugging_face" / "ptq"
     monkeypatch.syspath_prepend(str(examples_dir))
     return importlib.import_module("autoquant_utils")
 

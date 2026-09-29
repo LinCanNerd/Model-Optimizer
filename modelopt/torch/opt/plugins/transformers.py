@@ -287,7 +287,7 @@ class ModelOptTrainerArguments(ModelOptHFArguments):
             "help": (
                 "Path to a YAML file mapping fnmatch patterns to optimizer kwargs "
                 "(e.g. lr, weight_decay). First matching pattern wins per parameter. "
-                "See examples/llm_qat/configs/train/lr/lr_config_example.yaml."
+                "See examples/hugging_face/qat_qad/configs/train/lr/lr_config_example.yaml."
             ),
         },
     )

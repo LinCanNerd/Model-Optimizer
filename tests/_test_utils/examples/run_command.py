@@ -217,4 +217,4 @@ def run_hf_ptq_command(*, model: str, quant: str | None = None, vlm: bool = Fals
         # VLM PTQ shares the hf_ptq entry point; --vlm runs the multimodal deploy smoke test.
         cmd_parts.append("--vlm")
     cmd_parts = extend_cmd_parts(cmd_parts, **kwargs)
-    run_example_command(cmd_parts, "hf_ptq")
+    run_example_command(cmd_parts, "hugging_face/ptq")

@@ -4,7 +4,7 @@
 
 `moonshotai/Kimi-K3` is released with its routed experts already packed as
 MXFP4. Loading the 2.8T-parameter model and running the normal in-memory
-`examples/hf_ptq/hf_ptq.py` flow would both discard that source representation
+`examples/hugging_face/ptq/hf_ptq.py` flow would both discard that source representation
 and require impractical host memory. The Kimi-K3 converter therefore streams
 one safetensors shard at a time:
 

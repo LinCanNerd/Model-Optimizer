@@ -19,7 +19,7 @@ import inspect
 import textwrap
 from pathlib import Path
 
-_EXAMPLES_DIR = Path(__file__).resolve().parents[3] / "examples" / "hf_ptq"
+_EXAMPLES_DIR = Path(__file__).resolve().parents[3] / "examples" / "hugging_face" / "ptq"
 
 
 def _import_hf_ptq(monkeypatch):

@@ -7,7 +7,7 @@ monitoring), see the common skill's `slurm-setup.md`.
 
 ## 1. Container
 
-Get the recommended image version from `examples/hf_ptq/README.md`, then look for an existing `.sqsh` file:
+Get the recommended image version from `examples/hugging_face/ptq/README.md`, then look for an existing `.sqsh` file:
 
 ```bash
 ls *.sqsh ../*.sqsh ~/containers/*.sqsh 2>/dev/null
@@ -36,7 +36,7 @@ pip install -U transformers
 
 For unlisted models that need unreleased transformers (e.g., from git), see `references/unsupported-models.md` Step A.
 
-**Prefer `pip install -e ".[hf]" --no-build-isolation`** (run from the Model-Optimizer repo root) to make the synced ModelOpt source importable in the container — this matches how `examples/hf_ptq/slurm/multinode_fsdp2_ptq.slurm` sets up the job, and unlike `PYTHONPATH` it surfaces packaging/build issues instead of masking them. Avoid `pip install -U nvidia-modelopt[hf]` from PyPI, which can upgrade PyTorch and break other packages.
+**Prefer `pip install -e ".[hf]" --no-build-isolation`** (run from the Model-Optimizer repo root) to make the synced ModelOpt source importable in the container — this matches how `examples/hugging_face/ptq/slurm/multinode_fsdp2_ptq.slurm` sets up the job, and unlike `PYTHONPATH` it surfaces packaging/build issues instead of masking them. Avoid `pip install -U nvidia-modelopt[hf]` from PyPI, which can upgrade PyTorch and break other packages.
 
 ```bash
 pip install -e ".[hf]" --no-build-isolation
@@ -69,7 +69,7 @@ Estimate GPU count from model size and available GPU memory. `hf_ptq.py` uses `d
 
 For multi-node PTQ (200B+ params), use `hf_ptq.py --use_fsdp2`. For the launch commands (`sbatch`
 and manual `torchrun`) and the `--recipe` format, see the *Multi-Node Post-Training Quantization with
-FSDP2* section of `examples/hf_ptq/README.md`.
+FSDP2* section of `examples/hugging_face/ptq/README.md`.
 
 Sizing guidance specific to this path: when the per-rank decoder shard approaches GPU capacity (200B+ at low rank count), either add more nodes (more ranks → smaller shard per rank) or add `--cpu_offload`. Layer detection is automatic; no YAML config needed.
 

@@ -16,7 +16,7 @@
 # Checkpoint-mirror recipe for nvidia/Kimi-K3-NVFP4. The source Kimi-K3 routed
 # experts are already packed as MXFP4, so examples/kimi/kimi_k3/quantize_to_nvfp4.py
 # applies this layout as a streaming checkpoint conversion rather than loading
-# the complete model through examples/hf_ptq/hf_ptq.py.
+# the complete model through examples/hugging_face/ptq/hf_ptq.py.
 
 # modelopt-schema: modelopt.recipe.config.ModelOptPTQRecipe
 imports:

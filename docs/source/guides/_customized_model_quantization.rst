@@ -15,7 +15,7 @@ As ModelOpt cannot detect these linear ops out-of-the-box, a HugggingFace plugin
 #. Define a customized ``_QuantDbrxExpertGLU`` as a ``DynamicModule`` with the same ``forward`` signature.
 #. Rewrite the linear ops (w1, v1 and v2) as a standard ``nn.Linear`` op, and re-implement the ``forward`` method.
 #. Register the new dynamic ``_QuantDbrxExperts`` to replace the ``DbrxExperts`` from the modeling_dbrx.py in the ``transformers`` library
-#. Try quantize the DBRX model after the plugin is implemented, feel free to follow the `hf_ptq example <https://github.com/NVIDIA/Model-Optimizer/tree/main/examples/hf_ptq>`_.
+#. Try quantize the DBRX model after the plugin is implemented, feel free to follow the `hf_ptq example <https://github.com/NVIDIA/Model-Optimizer/tree/main/examples/hugging_face/ptq>`_.
 #. Export the quantized model with :meth:`export_hf_checkpoint <modelopt.torch.export.unified_export_hf.export_hf_checkpoint>`. If the customized model is not supported by TensorRT-LLM, add support in its PyTorch backend and adapt the HF exporter if needed. See the :doc:`unified HF export guide <../deployment/3_unified_hf>` or :doc:`contact us <../support/1_contact>` for help.
 
 The following code snippet is excerpted from ``modelopt/torch/quantization/plugins/huggingface.py``

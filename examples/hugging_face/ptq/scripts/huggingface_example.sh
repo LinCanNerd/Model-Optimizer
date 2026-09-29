@@ -165,7 +165,7 @@ if [[ $TASKS =~ "quant" ]] || [[ ! -d "$SAVE_PATH" ]] || [[ ! $(ls -A $SAVE_PATH
         # summary to a sibling dir (kept out of the checkpoint $SAVE_PATH, which is uploaded
         # and consumed downstream). Off by default (no behavior change).
         MEM_MON_PREFIX=()
-        MEM_MON_SCRIPT="$script_dir/../../../tools/resource_monitor.py"
+        MEM_MON_SCRIPT="$script_dir/../../../../tools/resource_monitor.py"
         if [[ "${MODELOPT_MEM_MONITOR:-0}" == "1" && ! -f "$MEM_MON_SCRIPT" ]]; then
             echo "resource_monitor: $MEM_MON_SCRIPT not found (repo-root tools/ absent in this" \
                  "distribution); continuing without the sidecar." >&2
@@ -281,7 +281,7 @@ if [[ $TASKS =~ "lm_eval" ]]; then
     LM_EVAL_RESULT=${SAVE_PATH}/lm_eval.txt
     echo "Evaluating lm_eval, result saved to $LM_EVAL_RESULT..."
 
-    pushd ../llm_eval/
+    pushd ../../llm_eval/
 
     pip install -r requirements.txt
 
@@ -309,7 +309,7 @@ if [[ $TASKS =~ "mmlu" ]]; then
     MMLU_RESULT=${SAVE_PATH}/mmlu.txt
     echo "Evaluating MMLU, result saved to $MMLU_RESULT..."
 
-    pushd ../llm_eval/
+    pushd ../../llm_eval/
 
     pip install -r requirements.txt
 
@@ -373,7 +373,7 @@ if [[ $TASKS =~ "livecodebench" || $TASKS =~ "simple_eval" ]]; then
     done
     echo "Application startup complete."
 
-    pushd ../llm_eval/
+    pushd ../../llm_eval/
 
     if [[ $TASKS =~ "livecodebench" ]]; then
         echo "Using the following config: max output $BUILD_MAX_OUTPUT_LEN max batch $BUILD_MAX_BATCH_SIZE"

@@ -133,7 +133,7 @@ Please reference our [framework scripts](#framework-scripts) and our [docs](http
 > *<sup>4.</sup>For some models, KV cache quantization may result in a higher accuracy penalty.* \
 > *<sup>5.</sup>A selective set of the popular models are internally tested. The actual model support list may be longer. NVFP4 inference requires Blackwell GPUs and TensorRT-LLM v1.2 or later* \
 > *<sup>6.</sup>Some models currently support export to HF format only.* \
-> *<sup>7.</sup>[PTQ for DeepSeek](../deepseek/README.md)* \
+> *<sup>7.</sup>[PTQ for DeepSeek](../../deepseek/README.md)* \
 > *<sup>8.</sup>GLM-4.7 has MTP (Multi-Token Prediction) layers that are automatically loaded and excluded from quantization.* \
 > *<sup>9.</sup>Running Whisper model with transformers>=5.0 requires [torchcodec](https://github.com/meta-pytorch/torchcodec?tab=readme-ov-file#installing-cuda-enabled-torchcodec) and other system packages (e.g. ffmpeg).* \
 > *<sup>10.</sup>GPT-OSS ships with native MXFP4 weights; NVFP4 export is produced via the closed-form `--cast_mxfp4_to_nvfp4` cast (see [MXFP4 → NVFP4 cast](#mxfp4--nvfp4-cast-for-gpt-oss)).* \
@@ -141,9 +141,9 @@ Please reference our [framework scripts](#framework-scripts) and our [docs](http
 > *<sup>12.</sup>For VLMs, `int8_smoothquant` only supports TensorRT-LLM checkpoint export and is not compatible with the TensorRT-LLM torch backend.* \
 > *<sup>13.</sup>Nemotron VL automatically calibrates with image-text pairs; see [VLM calibration with image-text pairs](#vlm-calibration-with-image-text-pairs-eg-nemotron-vl).* \
 > *<sup>14.</sup>Qwen3-VL and dense Qwen3.5 VLM checkpoints support opt-in FP8 vision encoder quantization through model-specific recipes. Vision Linear layers, including primary and deepstack merger Linears where present, are quantized; patch embedding and vision-attention BMMs remain in high precision. MoE variants are not validated by these recipes.* \
-> *<sup>15.</sup>Kimi K3 uses the calibration-free [streaming converter](../kimi/README.md) because its routed experts are released as packed MXFP4 tensors; it does not use the in-memory `hf_ptq.py` flow.*
+> *<sup>15.</sup>Kimi K3 uses the calibration-free [streaming converter](../../kimi/README.md) because its routed experts are released as packed MXFP4 tensors; it does not use the in-memory `hf_ptq.py` flow.*
 
-> *The accuracy loss after PTQ may vary depending on the actual model and the quantization method. Different models may have different accuracy loss and usually the accuracy loss is more significant when the base model is small. If the accuracy after PTQ is not meeting the requirement, please try either modifying [hf_ptq.py](./hf_ptq.py) and disabling the KV cache quantization or using the [QAT](./../llm_qat/README.md) instead. For NVFP4 quantization specifically, we recommend `nvfp4_mlp_only`, `nvfp4_experts_only`, or `nvfp4_omlp_only` to achieve higher accuracy by restricting quantization to the MLP/expert layers (and optionally the `o_proj` layer) while keeping the attention QKV projections unquantized.*
+> *The accuracy loss after PTQ may vary depending on the actual model and the quantization method. Different models may have different accuracy loss and usually the accuracy loss is more significant when the base model is small. If the accuracy after PTQ is not meeting the requirement, please try either modifying [hf_ptq.py](./hf_ptq.py) and disabling the KV cache quantization or using the [QAT](../qat_qad/README.md) instead. For NVFP4 quantization specifically, we recommend `nvfp4_mlp_only`, `nvfp4_experts_only`, or `nvfp4_omlp_only` to achieve higher accuracy by restricting quantization to the MLP/expert layers (and optionally the `o_proj` layer) while keeping the attention QKV projections unquantized.*
 
 > You can also create your own custom config using [this](https://nvidia.github.io/Model-Optimizer/guides/_pytorch_quantization.html#custom-calibration-algorithm) guide.
 
@@ -167,7 +167,7 @@ export HF_PATH=<the downloaded LLaMA checkpoint from the Hugging Face hub, or si
 scripts/huggingface_example.sh --model $HF_PATH --quant <QFORMAT> --tp [1|2|4|8]
 ```
 
-`QFORMAT` accepts any preset basename under [`modelopt_recipes/configs/ptq/presets/model/`](../../modelopt_recipes/configs/ptq/presets/model) — e.g. `fp8`, `fp8_per_channel_per_token`, `fp8_2d_blockwise_weight_only`, `int8`, `int8_smoothquant`, `int8_weight_only`, `int4_awq`, `w4a8_awq_beta`, `nvfp4`, `nvfp4_awq_lite`, `nvfp4_w4a4_weight_mse_fp8_sweep`, `nvfp4_mlp_only`, `nvfp4_experts_only`, `nvfp4_omlp_only`, `nvfp4_svdquant`, `nvfp4_w4a4_weight_local_hessian`, `w4a8_nvfp4_fp8`, `w4a8_mxfp4_fp8`, `mxfp8`.
+`QFORMAT` accepts any preset basename under [`modelopt_recipes/configs/ptq/presets/model/`](../../../modelopt_recipes/configs/ptq/presets/model) — e.g. `fp8`, `fp8_per_channel_per_token`, `fp8_2d_blockwise_weight_only`, `int8`, `int8_smoothquant`, `int8_weight_only`, `int4_awq`, `w4a8_awq_beta`, `nvfp4`, `nvfp4_awq_lite`, `nvfp4_w4a4_weight_mse_fp8_sweep`, `nvfp4_mlp_only`, `nvfp4_experts_only`, `nvfp4_omlp_only`, `nvfp4_svdquant`, `nvfp4_w4a4_weight_local_hessian`, `w4a8_nvfp4_fp8`, `w4a8_mxfp4_fp8`, `mxfp8`.
 
 > *By default `trust_remote_code` is set to false. Please turn it on if model calibration and eval requires it using `--trust_remote_code`.*
 
@@ -201,7 +201,7 @@ python hf_ptq.py \
   --export_path <quantized_ckpt_path>
 ```
 
-Built-in recipes are located in `modelopt_recipes/general/ptq/` for model-agnostic recipes and in `modelopt_recipes/model_type/<model_type>/ptq/` for recipes tuned to a specific Hugging Face `model_type` (see [`modelopt_recipes/model_type/README.md`](../../modelopt_recipes/model_type/README.md)). You can also provide a path to your own custom YAML recipe file or directory. See the [recipe documentation](https://nvidia.github.io/Model-Optimizer) for details on the YAML schema and available recipes.
+Built-in recipes are located in `modelopt_recipes/general/ptq/` for model-agnostic recipes and in `modelopt_recipes/model_type/<model_type>/ptq/` for recipes tuned to a specific Hugging Face `model_type` (see [`modelopt_recipes/model_type/README.md`](../../../modelopt_recipes/model_type/README.md)). You can also provide a path to your own custom YAML recipe file or directory. See the [recipe documentation](https://nvidia.github.io/Model-Optimizer) for details on the YAML schema and available recipes.
 
 > *When `--recipe` is specified, `--qformat` is ignored. KV cache handling depends on the recipe type: a **PTQ** recipe bakes KV cache into its config and ignores `--kv_cache_qformat`; an **AutoQuantize** recipe falls back to `--kv_cache_qformat` unless it sets an explicit `kv_cache` field or `kv_auto_quantize` follow-up.*
 
@@ -259,11 +259,11 @@ The cast pins each NVFP4 block's `scale_2 = 2^(k_max - 8)` and `_amax = 6 * 2^k_
 
 #### Deepseek R1
 
-[PTQ for DeepSeek](../deepseek/README.md) shows how to quantize the DeepSeek model with FP4 and export to TensorRT-LLM.
+[PTQ for DeepSeek](../../deepseek/README.md) shows how to quantize the DeepSeek model with FP4 and export to TensorRT-LLM.
 
 #### Kimi K3
 
-[PTQ for Kimi K3](../kimi/README.md) shows how to cast the source MXFP4 routed
+[PTQ for Kimi K3](../../kimi/README.md) shows how to cast the source MXFP4 routed
 experts to NVFP4 and quantize KDA/MLA attention weights to 128x128 block FP8
 without loading the full model or running calibration.
 
@@ -348,7 +348,7 @@ This functionality is currently in beta and has been tested on `nvidia/NVIDIA-Ne
 
 ### Megatron-Bridge Example Script
 
-Please refer to [examples/megatron_bridge/README.md](../megatron_bridge/README.md) for example scripts for PTQ / QAD with Megatron-Bridge which is generally more performant than the Hugging Face scripts.
+Please refer to [examples/megatron_bridge/README.md](../../megatron_bridge/README.md) for example scripts for PTQ / QAD with Megatron-Bridge which is generally more performant than the Hugging Face scripts.
 
 ### Megatron-LM Example Script
 
@@ -407,8 +407,8 @@ Here is an example usage for `AutoQuantize` algorithm (Please see [auto_quantize
 `AutoQuantize` is driven by an **AutoQuantize recipe** passed with `--recipe`. The recipe defines the
 candidate formats, optional fixed PTQ baseline, `effective_bits` target, cost model, scoring method,
 search-disabled layers, and cost-excluded layers — see
-[`AutoQuantizeConfig`](../../modelopt/recipe/config.py). Shipped recipes live in
-[`modelopt_recipes/general/auto_quantize/`](../../modelopt_recipes/general/auto_quantize); model-specific
+[`AutoQuantizeConfig`](../../../modelopt/recipe/config.py). Shipped recipes live in
+[`modelopt_recipes/general/auto_quantize/`](../../../modelopt_recipes/general/auto_quantize); model-specific
 recipes (carrying architecture-specific disabled layers — e.g. VL vision towers) live under
 `modelopt_recipes/model_type/<model>/auto_quantize/`.
 
@@ -608,11 +608,11 @@ See [Recipe-based Quantization](#recipe-based-quantization) for the recipe forma
 
 ### TensorRT-LLM Validation
 
-A list of accuracy validation benchmarks are provided in the [llm_eval](../llm_eval/README.md) directory. Right now MMLU is supported in this example by specifying the `--tasks` flag running the scripts mentioned above.
+A list of accuracy validation benchmarks are provided in the [llm_eval](../../llm_eval/README.md) directory. Right now MMLU is supported in this example by specifying the `--tasks` flag running the scripts mentioned above.
 
 The `benchmark_suite.py` script is used as a fast performance benchmark. For details, please refer to the [TensorRT-LLM documentation](https://github.com/NVIDIA/TensorRT-LLM/blob/main/benchmarks/)
 
-This example also covers the [lm_evaluation_harness](https://github.com/EleutherAI/lm-evaluation-harness), MMLU and the human eval accuracy benchmarks, whose details can be found [here](../llm_eval/README.md). The supported lm_eval evaluation tasks are listed [here](https://github.com/EleutherAI/lm-evaluation-harness/tree/main/lm_eval/tasks)
+This example also covers the [lm_evaluation_harness](https://github.com/EleutherAI/lm-evaluation-harness), MMLU and the human eval accuracy benchmarks, whose details can be found [here](../../llm_eval/README.md). The supported lm_eval evaluation tasks are listed [here](https://github.com/EleutherAI/lm-evaluation-harness/tree/main/lm_eval/tasks)
 
 ## Exporting Checkpoints
 
@@ -643,7 +643,7 @@ with torch.inference_mode():
 python hf_ptq.py --pyt_ckpt_path <huggingface_model_card> --qformat fp8 --export_path <quantized_ckpt_path> --trust_remote_code
 ```
 
-> *For exporting fake-quantized models for vLLM serving (e.g., for research or kernels not yet supported in real-quant), use the `--vllm_fakequant_export` flag. See [vllm_serve/README.md](../vllm_serve/README.md) for details.*
+> *For exporting fake-quantized models for vLLM serving (e.g., for research or kernels not yet supported in real-quant), use the `--vllm_fakequant_export` flag. See [vllm_serve/README.md](../../vllm_serve/README.md) for details.*
 
 ### Hugging Face framework [Script](./scripts/huggingface_example.sh)
 
@@ -692,7 +692,7 @@ diffusion models — lives in the documentation so there is a single copy to kee
 
 **[Unified HF Checkpoint → Model Support Matrix](https://nvidia.github.io/Model-Optimizer/deployment/3_unified_hf.html#model-support-matrix)**
 
-Each entry there is drawn from [`tests/examples/hf_ptq/test_deploy.py`](../../tests/examples/hf_ptq/test_deploy.py),
+Each entry there is drawn from [`tests/examples/hf_ptq/test_deploy.py`](../../../tests/examples/hf_ptq/test_deploy.py),
 which loads the exported checkpoint in each framework and generates from short text prompts. That
 file is also the place to look for the exact checkpoint, tensor-parallel size, and minimum SM
 version behind each entry.
@@ -799,7 +799,7 @@ Authentication uses MLflow's own environment variables (`MLFLOW_TRACKING_TOKEN`,
 `MLFLOW_TRACKING_USERNAME` / `MLFLOW_TRACKING_PASSWORD`).
 
 The tracking itself lives in `modelopt.torch.utils.mlflow`
-([`MlflowRunLogger`](../../modelopt/torch/utils/mlflow.py)), so other example scripts can
+([`MlflowRunLogger`](../../../modelopt/torch/utils/mlflow.py)), so other example scripts can
 record runs the same way; `hf_ptq.py` only supplies the params and artifacts specific to PTQ.
 
 > Note: only the main rank uploads, so `--use_fsdp2` runs produce a single run. The log
@@ -810,7 +810,7 @@ record runs the same way; `hf_ptq.py` only supplies the params and artifacts spe
 
 - 📅 [Roadmap](https://github.com/NVIDIA/Model-Optimizer/issues/1699)
 - 📖 [Documentation](https://nvidia.github.io/Model-Optimizer)
-- 🎯 [Benchmarks](../benchmark.md)
+- 🎯 [Benchmarks](../../benchmark.md)
 - 💡 [Release Notes](https://nvidia.github.io/Model-Optimizer/reference/0_changelog.html)
 - 🐛 [File a bug](https://github.com/NVIDIA/Model-Optimizer/issues/new?template=1_bug_report.md)
 - ✨ [File a Feature Request](https://github.com/NVIDIA/Model-Optimizer/issues/new?template=2_feature_request.md)

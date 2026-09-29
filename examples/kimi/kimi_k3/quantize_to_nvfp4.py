@@ -33,7 +33,7 @@ This script rewrites the 96-shard release in place-for-place fashion:
    equals the source MXFP4 nibble verbatim -- bit-exact for every block whose
    ``k_j`` lands in E4M3's window (``k_max - k_j <= 17``). Blocks outside the
    window fall back to a data-derived per-block amax. The numerics are shared
-   with the GPT-OSS cast (``examples/hf_ptq/cast_mxfp4_to_nvfp4.py``, PR #1372)
+   with the GPT-OSS cast (``examples/hugging_face/ptq/cast_mxfp4_to_nvfp4.py``, PR #1372)
    via ``modelopt.torch.quantization.utils.numeric_utils``.
 
    As in DeepSeek-V4, ``w1``/``w3`` feed one fused GEMM1 and therefore must

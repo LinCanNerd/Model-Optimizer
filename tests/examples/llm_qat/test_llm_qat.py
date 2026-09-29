@@ -64,7 +64,7 @@ def _run_quantize(config: str, extra_cmd_args: list[str], cache_dir: str = ""):
             *_fast_data_args(cache_dir),
             *extra_cmd_args,
         ],
-        "llm_qat",
+        "hugging_face/qat_qad",
     )
 
 
@@ -86,7 +86,7 @@ def _run_train(config: str, extra_cmd_args: list[str], backend: str = "fsdp2", c
             *gradient_args,
             *extra_cmd_args,
         ],
-        "llm_qat",
+        "hugging_face/qat_qad",
         setup_free_port=True,
     )
 
@@ -98,7 +98,7 @@ def _run_export(ckpt_dir: str, export_dir: str):
             "--pyt_ckpt_path", ckpt_dir,
             "--export_path", export_dir,
         ],
-        "llm_qat",
+        "hugging_face/qat_qad",
     )
 
 
@@ -111,7 +111,7 @@ def test_dataset_utils_pretokenize(tiny_qwen3_path, tmp_path):
             *_fast_data_args(str(cache_dir)),
             "--model_name_or_path", tiny_qwen3_path,
         ],
-        "llm_qat",
+        "hugging_face/qat_qad",
     )
     assert cache_dir.exists(), "Cache directory should be created"
     assert any(cache_dir.iterdir()), "Cache directory should contain tokenized data"

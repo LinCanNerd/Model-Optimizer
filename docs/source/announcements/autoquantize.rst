@@ -147,7 +147,7 @@ AutoQuantize is a one-call API in Model Optimizer — pass the model, a bit budg
        num_score_steps=128,
    )
 
-The returned model carries the searched per-layer format assignment and is ready for export. For an end-to-end example on Hugging Face models — including the supported export workflow — see the `AutoQuantize section of the ModelOpt hf_ptq README <https://github.com/NVIDIA/Model-Optimizer/tree/main/examples/hf_ptq#autoquantize>`_. AutoQuantize also works on Megatron Core models — see the `AutoQuantize mixed-precision search example in Megatron-LM <https://github.com/NVIDIA/Megatron-LM/tree/main/examples/post_training/modelopt#-auto-quantize-mixed-precision-search>`_.
+The returned model carries the searched per-layer format assignment and is ready for export. For an end-to-end example on Hugging Face models — including the supported export workflow — see the `AutoQuantize section of the ModelOpt hf_ptq README <https://github.com/NVIDIA/Model-Optimizer/tree/main/examples/hugging_face/ptq#autoquantize>`_. AutoQuantize also works on Megatron Core models — see the `AutoQuantize mixed-precision search example in Megatron-LM <https://github.com/NVIDIA/Megatron-LM/tree/main/examples/post_training/modelopt#-auto-quantize-mixed-precision-search>`_.
 
 Next steps
 **********

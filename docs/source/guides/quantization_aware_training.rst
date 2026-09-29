@@ -80,7 +80,7 @@ Use the framework README as the executable source of truth. Each guide owns its
 prerequisites, commands, data preparation, distributed topology, and export options.
 
 * `Hugging Face QAT/QAD Quick Start
-  <https://github.com/NVIDIA/Model-Optimizer/tree/main/examples/llm_qat#quick-start>`_
+  <https://github.com/NVIDIA/Model-Optimizer/tree/main/examples/hugging_face/qat_qad#quick-start>`_
 * `Megatron-Bridge README
   <https://github.com/NVIDIA/Model-Optimizer/tree/main/examples/megatron_bridge>`_
 * `Megatron-LM ModelOpt post-training documentation

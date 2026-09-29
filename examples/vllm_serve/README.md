@@ -133,7 +133,7 @@ The quantization settings from the table above are logged as searchable params, 
 the serving settings (`tensor_parallel_size`, `max_model_len`, `dtype`, `kv_cache_dtype`, …)
 and `user` / `hostname` / `modelopt_version` / `git_sha` / `vllm_version` tags. The
 `checkpoint_path` tag is the checkpoint being served, which is the same key
-`examples/hf_ptq/hf_ptq.py` tags its runs with — so the PTQ run that produced a checkpoint
+`examples/hugging_face/ptq/hf_ptq.py` tags its runs with — so the PTQ run that produced a checkpoint
 and every serve of it can be found together.
 
 Other flags:
@@ -157,10 +157,10 @@ tracking settings, since a Ray worker starts with a clean environment.
 
 Step 1: export the model with bf16 weights and quantizer state. To export the model:
 
-- For **HF** models, use `examples/hf_ptq/hf_ptq.py` with `--vllm_fakequant_export`:
+- For **HF** models, use `examples/hugging_face/ptq/hf_ptq.py` with `--vllm_fakequant_export`:
 
 ```bash
-python ../hf_ptq/hf_ptq.py \
+python ../hugging_face/ptq/hf_ptq.py \
   --pyt_ckpt_path <MODEL_PATH> \
   --recipe <PATH_TO_RECIPE> \
   --calib_size 512 \
@@ -171,7 +171,7 @@ python ../hf_ptq/hf_ptq.py \
 
   This creates `<EXPORT_DIR>/vllm_fq_modelopt_state.pth` (ModelOpt quantizer state for vLLM fake-quant reload) and saves the HF-exported model under `<EXPORT_DIR>` (config/tokenizer/weights).
 
-  Note: `--pyt_ckpt_path` can point to either an HF checkpoint or a ModelOpt-saved checkpoint (e.g., a QAT/QAD checkpoint produced by `examples/llm_qat/train.py`). If the input checkpoint is already quantized, the script will **skip re-quantization** and only export artifacts for vLLM fakequant reload.
+  Note: `--pyt_ckpt_path` can point to either an HF checkpoint or a ModelOpt-saved checkpoint (e.g., a QAT/QAD checkpoint produced by `examples/hugging_face/qat_qad/train.py`). If the input checkpoint is already quantized, the script will **skip re-quantization** and only export artifacts for vLLM fakequant reload.
 
 - For **MCore** models, export the model with flag `--export-vllm-fq` as described in [Megatron-LM README](https://github.com/NVIDIA/Megatron-LM/tree/main/examples/post_training/modelopt#-nvfp4-quantization-qauntization-aware-training-and-model-export). This generates `quantizer_state.pth`, which contains quantizer tensors for vLLM reload via `QUANT_FILE_PATH`.
 

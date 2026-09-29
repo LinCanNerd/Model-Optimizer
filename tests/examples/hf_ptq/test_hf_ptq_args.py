@@ -39,7 +39,7 @@ from modelopt.torch.quantization.config import QuantizeConfig
 from modelopt.torch.utils import mlflow as mlflow_lib
 from modelopt.torch.utils.mlflow import describe_run, run_tags
 
-_EXAMPLES_DIR = Path(__file__).resolve().parents[3] / "examples" / "hf_ptq"
+_EXAMPLES_DIR = Path(__file__).resolve().parents[3] / "examples" / "hugging_face" / "ptq"
 
 
 def _import_hf_ptq(monkeypatch):

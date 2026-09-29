@@ -78,7 +78,12 @@ jobs:
             python -m pip uninstall -y apex || true
           fi
 
-          find examples/${{ inputs.example }} -name "requirements.txt" | while read req_file; do python -m pip install -r "$req_file" || exit 1; done
+          example_dir="examples/${{ inputs.example }}"
+          case "${{ inputs.example }}" in
+            hf_ptq) example_dir="examples/hugging_face/ptq" ;;
+            llm_qat) example_dir="examples/hugging_face/qat_qad" ;;
+          esac
+          find "$example_dir" -name "requirements.txt" | while read req_file; do python -m pip install -r "$req_file" || exit 1; done
       - name: Run tests
         id: run_tests
         continue-on-error: ${{ inputs.allow_failure }}

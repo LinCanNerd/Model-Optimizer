@@ -62,11 +62,13 @@ jobs:
               - "!**/*.{md,rst,png,ipynb}"
             torch:
               - "{examples,tests/examples}/{llm_distill,llm_qat,llm_sparsity,specdec_bench,speculative_decoding,vllm_serve}/**"
+              - examples/hugging_face/qat_qad/**
               - examples/dataset/** # data prep for llm_qat and speculative_decoding
-              - examples/hf_ptq/** # the speculative_decoding test drives hf_ptq
+              - examples/hugging_face/ptq/** # the speculative_decoding test drives hf_ptq
               - "!**/*.{md,rst,png,ipynb}"
             trtllm:
               - "{examples,tests/examples}/{gpt-oss,hf_ptq,llm_eval}/**"
+              - examples/hugging_face/ptq/**
               - examples/dataset/** # data prep for gpt-oss
               - "!**/*.{md,rst,png,ipynb}"
             megatron:

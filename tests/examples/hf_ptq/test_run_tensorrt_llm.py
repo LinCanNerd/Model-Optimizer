@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Argument-forwarding tests for ``examples/hf_ptq/run_tensorrt_llm.py``.
+"""Argument-forwarding tests for ``examples/hugging_face/ptq/run_tensorrt_llm.py``.
 
 ``--trust_remote_code`` must reach the model load, not just the tokenizer: checkpoints
 shipping custom modeling code (``auto_map``), e.g. Llama-3.3-Nemotron-Super-49B-v1
@@ -25,7 +25,7 @@ from types import ModuleType, SimpleNamespace
 import pytest
 from _test_utils.examples.run_command import MODELOPT_ROOT
 
-_HF_PTQ_DIR = MODELOPT_ROOT / "examples" / "hf_ptq"
+_HF_PTQ_DIR = MODELOPT_ROOT / "examples" / "hugging_face" / "ptq"
 
 
 class _RecordingLLM:
