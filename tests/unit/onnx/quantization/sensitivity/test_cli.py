@@ -205,3 +205,150 @@ class TestMain:
                     str(calib_dir),
                 ]
             )
+
+
+class TestLogLevelWiring:
+    """``--log_level`` is parsed, configures the shared modelopt.onnx logger,
+    and is threaded through to :func:`score`."""
+
+    @staticmethod
+    def _stub_result():
+        return {
+            "target_precision": "int8",
+            "metric": "kl_div",
+            "granularity": "op_type",
+            "calibration_source": "synthetic",
+            "num_calibration_samples": 8,
+            "scores": {"Conv": 0.1},
+            "failed": [],
+        }
+
+    def test_default_log_level_is_info(self, tmp_path, monkeypatch):
+        onnx_path = tmp_path / "m.onnx"
+        onnx_path.write_bytes(b"\x00")
+        seen: dict = {}
+
+        def fake_score(**kwargs):
+            seen.update(kwargs)
+            return self._stub_result()
+
+        recorded_level = {}
+
+        def fake_configure(level, log_file=None):
+            recorded_level["level"] = level
+
+        monkeypatch.setattr(cli, "score", fake_score)
+        monkeypatch.setattr(cli, "configure_logging", fake_configure)
+        cli.main(["--onnx_path", str(onnx_path)])
+        import logging as _l
+        assert recorded_level["level"] == _l.INFO
+        assert seen["log_level"] == "INFO"
+
+    def test_debug_flag_propagates_to_score_and_configure(self, tmp_path, monkeypatch):
+        onnx_path = tmp_path / "m.onnx"
+        onnx_path.write_bytes(b"\x00")
+        seen: dict = {}
+
+        def fake_score(**kwargs):
+            seen.update(kwargs)
+            return self._stub_result()
+
+        recorded_level = {}
+
+        def fake_configure(level, log_file=None):
+            recorded_level["level"] = level
+
+        monkeypatch.setattr(cli, "score", fake_score)
+        monkeypatch.setattr(cli, "configure_logging", fake_configure)
+        cli.main(["--onnx_path", str(onnx_path), "--log_level", "DEBUG"])
+        import logging as _l
+        assert recorded_level["level"] == _l.DEBUG
+        assert seen["log_level"] == "DEBUG"
+
+
+    def test_lowercase_log_level_accepted_and_upper_cased(self, tmp_path, monkeypatch):
+        """Upstream ``modelopt.onnx.quantization.__main__`` accepts lower and
+        upper case; mirror that so operators can pass either form."""
+        onnx_path = tmp_path / "m.onnx"
+        onnx_path.write_bytes(b"\x00")
+        monkeypatch.setattr(cli, "score", lambda **_: self._stub_result())
+
+        recorded_level = {}
+
+        def fake_configure(level, log_file=None):
+            recorded_level["level"] = level
+
+        monkeypatch.setattr(cli, "configure_logging", fake_configure)
+        cli.main(["--onnx_path", str(onnx_path), "--log_level", "debug"])
+        import logging as _l
+        assert recorded_level["level"] == _l.DEBUG
+
+    def test_invalid_log_level_rejected_by_argparse(self, tmp_path, monkeypatch):
+        onnx_path = tmp_path / "m.onnx"
+        onnx_path.write_bytes(b"\x00")
+        monkeypatch.setattr(cli, "score", lambda **_: self._stub_result())
+        with pytest.raises(SystemExit):
+            cli.main(["--onnx_path", str(onnx_path), "--log_level", "TRACE"])
+
+
+class TestQuietSublogsDuringProbe:
+    """``score._quiet_sublogs_during_probe`` yields the log_level to pass to
+    :func:`quantize` and restores the shared logger after quantize()'s
+    global ``configure_logging`` side effect. Pure unit tests -- no probe run."""
+
+    @staticmethod
+    def _load():
+        from modelopt.onnx.quantization.sensitivity import score as score_mod
+        return score_mod
+
+    def test_info_yields_warning_and_reconfigures_around_block(self, monkeypatch):
+        score_mod = self._load()
+        calls = []
+        monkeypatch.setattr(
+            score_mod, "configure_logging",
+            lambda level, log_file=None: calls.append(level),
+        )
+        import logging as _l
+        with score_mod._quiet_sublogs_during_probe(_l.INFO) as probe_ll:
+            assert probe_ll == "WARNING"
+        # enter -> WARNING, exit -> INFO
+        assert calls == [_l.WARNING, _l.INFO]
+
+    def test_debug_passes_through_unchanged(self, monkeypatch):
+        score_mod = self._load()
+        calls = []
+        monkeypatch.setattr(
+            score_mod, "configure_logging",
+            lambda level, log_file=None: calls.append(level),
+        )
+        import logging as _l
+        with score_mod._quiet_sublogs_during_probe(_l.DEBUG) as probe_ll:
+            assert probe_ll == "DEBUG"
+        # No reconfigure calls -- DEBUG mode wants the firehose.
+        assert calls == []
+
+    def test_warning_passes_through_unchanged(self, monkeypatch):
+        score_mod = self._load()
+        calls = []
+        monkeypatch.setattr(
+            score_mod, "configure_logging",
+            lambda level, log_file=None: calls.append(level),
+        )
+        import logging as _l
+        with score_mod._quiet_sublogs_during_probe(_l.WARNING) as probe_ll:
+            assert probe_ll == "WARNING"
+        assert calls == []
+
+    def test_restore_runs_even_if_block_raises(self, monkeypatch):
+        score_mod = self._load()
+        calls = []
+        monkeypatch.setattr(
+            score_mod, "configure_logging",
+            lambda level, log_file=None: calls.append(level),
+        )
+        import logging as _l
+        with pytest.raises(RuntimeError, match="probe boom"):
+            with score_mod._quiet_sublogs_during_probe(_l.INFO):
+                raise RuntimeError("probe boom")
+        # enter -> WARNING, exit (via finally) -> INFO
+        assert calls == [_l.WARNING, _l.INFO]

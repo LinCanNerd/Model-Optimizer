@@ -24,17 +24,19 @@ degrades the model more if quantized.
 from __future__ import annotations
 
 import glob
+import logging
 import os
 import re
 import tempfile
 import time
+from contextlib import contextmanager
 from enum import Enum
 from typing import TYPE_CHECKING
 
 import numpy as np
 import onnx
 
-from modelopt.onnx.logging_config import logger
+from modelopt.onnx.logging_config import configure_logging, logger
 from modelopt.onnx.op_types import (
     get_activation_ops,
     is_copy_op,
@@ -111,6 +113,30 @@ def _default_op_types_scope(onnx_model: onnx.ModelProto) -> set[str]:
         )
         and not is_copy_op(op)
     }
+
+
+@contextmanager
+def _quiet_sublogs_during_probe(active_level: int):
+    """Silence per-probe ``quantize()`` / inference chatter and restore the
+    operator's chosen log level afterwards.
+
+    Yields the ``log_level`` string to pass to ``quantize()`` (which
+    reconfigures the shared ``modelopt.onnx`` logger globally as a side
+    effect at ``modelopt/onnx/quantization/quantize.py:configure_logging``).
+    Maps ``INFO`` -> ``WARNING`` for the probe so the per-target
+    ``[idx/total] scored ...`` progress line stays readable at the default
+    level; ``DEBUG`` / ``WARNING`` / ``ERROR`` pass through unchanged.
+    After the block, restore the CLI level so the progress ``logger.info``
+    still emits and the next probe sees a consistent starting state.
+    """
+    quiet = logging.WARNING if active_level == logging.INFO else active_level
+    if quiet != active_level:
+        configure_logging(level=quiet)
+    try:
+        yield logging.getLevelName(quiet)
+    finally:
+        if quiet != active_level:
+            configure_logging(level=active_level)
 
 
 def score(
@@ -205,7 +231,7 @@ def score(
         onnx_model, calibration_data, num_synthetic_samples
     )
     num_samples = _num_samples(calib_dict)
-    logger.info(
+    logger.debug(
         f"Sensitivity scan: {calibration_source.value} calibration, {num_samples} samples, "
         f"granularity={granularity}, metric={metric}, target_precision={target_precision}"
     )
@@ -220,7 +246,9 @@ def score(
 
     metric_fn = _METRIC_FUNCS[metric]
     calibration_eps_list = list(calibration_eps)
-    ref_outputs = _run_inference(onnx_path, calib_dict, calibration_eps_list)
+    active_level = getattr(logging, log_level.upper(), logging.INFO)
+    with _quiet_sublogs_during_probe(active_level):
+        ref_outputs = _run_inference(onnx_path, calib_dict, calibration_eps_list)
 
     scores: dict[str, float] = {}
     failed: list[str] = []
@@ -237,25 +265,30 @@ def score(
             )
             step_start = time.monotonic()
             try:
-                quantize(
-                    onnx_path=onnx_path,
-                    quantize_mode=target_precision,
-                    calibration_data=calib_dict,
-                    calibration_method=calibration_method,
-                    calibration_eps=calibration_eps_list,
-                    output_path=probe_path,
-                    # Keep non-quantized ops at fp32 to avoid I/O dtype drift between the reference
-                    # and quantized graphs -- the metric then reflects pure Q/DQ distortion.
-                    high_precision_dtype="fp32",
-                    keep_intermediate_files=False,
-                    **quantize_kwargs,
-                )
+                with _quiet_sublogs_during_probe(active_level) as probe_log_level:
+                    quantize(
+                        onnx_path=onnx_path,
+                        quantize_mode=target_precision,
+                        calibration_data=calib_dict,
+                        calibration_method=calibration_method,
+                        calibration_eps=calibration_eps_list,
+                        output_path=probe_path,
+                        # Keep non-quantized ops at fp32 to avoid I/O dtype drift between the
+                        # reference and quantized graphs -- the metric then reflects pure Q/DQ
+                        # distortion.
+                        high_precision_dtype="fp32",
+                        keep_intermediate_files=False,
+                        log_level=probe_log_level,
+                        **quantize_kwargs,
+                    )
+                    # inference inherits the raised level so its INFO chatter stays out of the log.
+                    quant_outputs = _run_inference(probe_path, calib_dict, calibration_eps_list)
             except Exception as e:
                 logger.warning(
-                    f"[{idx}/{len(targets)}] quantize() failed for target '{target_name}' "
+                    f"[{idx}/{len(targets)}] probe failed for target '{target_name}' "
                     f"({type(e).__name__}); recording as unprobed."
                 )
-                logger.debug(f"quantize() failure detail for '{target_name}':", exc_info=True)
+                logger.debug(f"probe failure detail for '{target_name}':", exc_info=True)
                 failed.append(target_name)
                 continue
 
@@ -269,7 +302,6 @@ def score(
                 failed.append(target_name)
                 continue
 
-            quant_outputs = _run_inference(probe_path, calib_dict, calibration_eps_list)
             scores[target_name] = _pair_metric(ref_outputs, quant_outputs, metric_fn)
             logger.info(
                 f"[{idx}/{len(targets)}] scored '{target_name}' = {scores[target_name]:.6g} "

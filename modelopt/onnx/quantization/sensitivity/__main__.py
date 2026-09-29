@@ -24,10 +24,11 @@ from __future__ import annotations
 import argparse
 import glob
 import json
+import logging
 import os
 import sys
 
-from modelopt.onnx.logging_config import logger
+from modelopt.onnx.logging_config import configure_logging, logger
 from modelopt.onnx.quantization.sensitivity.score import Granularity, Metric, score
 from modelopt.onnx.utils import validate_file_size
 
@@ -215,6 +216,18 @@ def get_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Include zero-score targets in the stderr ranked table.",
     )
+    parser.add_argument(
+        "--log_level",
+        type=str,
+        default="INFO",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "debug", "info", "warning", "error"],
+        help=(
+            "``modelopt.onnx`` logger level. Default INFO shows the per-target "
+            "``[idx/total] scored ...`` progress line plus warnings/errors; per-probe "
+            "``quantize()`` / inference chatter is silenced. Set DEBUG for the full "
+            "firehose, or WARNING / ERROR to silence the progress line too."
+        ),
+    )
     return parser
 
 
@@ -231,6 +244,7 @@ def main(argv: list[str] | None = None) -> int:
         boundary.
     """
     args = get_parser().parse_args(argv)
+    configure_logging(level=getattr(logging, args.log_level.upper()))
 
     # Boundary validation on user-supplied paths -- mirrors modelopt.onnx.quantization.__main__.
     validate_file_size(args.onnx_path, _ONNX_MAX_SIZE_BYTES)
@@ -256,6 +270,7 @@ def main(argv: list[str] | None = None) -> int:
         calibration_method=args.calibration_method,
         calibration_eps=args.calibration_eps,
         op_types_scope=args.op_types_scope,
+        log_level=args.log_level,
     )
     payload = {"onnx_path": os.path.abspath(args.onnx_path), **result}
     output_json = args.output_json or _default_output_json(args.onnx_path)
