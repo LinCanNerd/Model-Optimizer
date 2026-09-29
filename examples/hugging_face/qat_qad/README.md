@@ -1,8 +1,8 @@
 # Hugging Face Quantization Aware Training (QAT) and Distillation (QAD)
 
-Quantization Aware Training (QAT) improves model accuracy beyond post-training quantization (PTQ) at low precisions (e.g., INT4, FP4 on [NVIDIA Blackwell](https://www.nvidia.com/en-us/data-center/technologies/blackwell-architecture/)). Quantization Aware Distillation (QAD) further improves accuracy by using the original full-precision model as a teacher.
+This tutorial shows how to run QAT and QAD with Hugging Face Transformers: set up the environment, quantize a model, train it, evaluate the checkpoint, and export it for deployment.
 
-For background on how QAT enables low-precision accuracy recovery, see the [QAT/QAD blog post](https://developer.nvidia.com/blog/how-quantization-aware-training-enables-low-precision-accuracy-recovery/).
+For background on QAT and QAD and help choosing between Hugging Face and Megatron Bridge, start with the [QAT/QAD guide](https://nvidia.github.io/Model-Optimizer/guides/quantization_aware_training.html).
 
 <div align="center">
 
