@@ -50,7 +50,7 @@ STATE_QDQ_MAX_BLOCK_V = 128
 
 @triton.jit
 def _state_qdq_scale(b_h1, b_h2, b_h3, b_h4, K: tl.constexpr):
-    """[ModelOpt] Dynamic FP8 E4M3 scale over the up-to-four K tiles of one program's state."""
+    """[ModelOpt] Dynamic FP8 E4M3 scale per full [K, BV] tile of one sequence and head."""
     b_amax = tl.max(tl.abs(b_h1))
     if K > 64:
         b_amax = tl.maximum(b_amax, tl.max(tl.abs(b_h2)))
@@ -385,9 +385,8 @@ def chunk_gated_delta_rule_fwd_kernel_h_blockdim64(
             else:
                 b_h4 = tl.dot(b_k, b_v, b_h4)
 
-        # [ModelOpt] Fake-quantize the state carried into the next chunk (and, after the last
-        # chunk, the stored final state) to FP8 E4M3. The scale is dynamic over this program's
-        # [K, BV] tile of the head state; BV == V makes it one scale per sequence and head.
+        # [ModelOpt] Dynamic per-tile FP8 QDQ of the next-chunk or stored final state.
+        # Recompute amax over [K, BV]; fp8_scalar_qdq applies that tile's scalar scale.
         if STATE_QDQ == 1:
             if K > 192:
                 b_scale = _state_qdq_scale(b_h1, b_h2, b_h3, b_h4, K=K)
