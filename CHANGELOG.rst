@@ -107,7 +107,7 @@ Changelog
 **Bug Fixes**
 
 - Fix Megatron unified HF export of MoE models with grouped-GEMM experts when only the experts are quantized (e.g. ``nvfp4_experts_only-*`` recipes): ``hf_quant_config.json`` and the ``quantization_config`` in ``config.json`` were not written, so the quantized experts were served as unquantized weights. Re-export such checkpoints.
-- Fix DFlash conversion on a NoPE target whose config declares ``rope_theta`` without setting it: the draft keeps its own RoPE base instead of inheriting ``None``, which failed when the draft's rotary embedding was built.
+- Fix DFlash conversion on NoPE targets whose config leaves ``rope_theta`` unset.
 - Fix Megatron-Core checkpoint saving for quantized grouped MoE experts when tensor and expert parallelism are both enabled.
 - Fix unified HuggingFace export of RADIO-based VLMs retaining post-conversion vision and
   projector names instead of restoring the hub layout; deployment loaders could skip those weights.
