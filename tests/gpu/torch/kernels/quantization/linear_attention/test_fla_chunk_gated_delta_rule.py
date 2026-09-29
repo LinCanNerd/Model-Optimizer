@@ -37,6 +37,11 @@ from modelopt.torch.kernels.quantization.linear_attention.fla_chunk_gated_delta_
     chunk_gated_delta_rule,
 )
 
+DTYPES = (torch.float32, torch.bfloat16)
+QDQ_MODES = ((False, False), (False, True), (True, False), (True, True))
+STATE_LAYOUTS = ((False, False), (True, True))
+W_AXES = (None, (0, 1), (0, 1, 2))
+
 
 def require_state_qdq():
     if torch.cuda.get_device_capability() < (8, 9):
@@ -97,9 +102,84 @@ def values_and_grads(fn, args, state, **kwargs):
     return result, grads
 
 
-# The first comparison compiles and autotunes both upstream and ModelOpt forward/backward kernels.
-@pytest.mark.timeout(300)
-@pytest.mark.parametrize("dtype", [torch.float32, torch.bfloat16])
+@pytest.fixture(scope="module", autouse=True)
+def _compile_gdn_kernels():
+    """Keep compilation/autotuning in setup, including when selecting a single test."""
+    supports_state_qdq = torch.cuda.get_device_capability() >= (8, 9)
+    for dtype in DTYPES:
+        if dtype == torch.float32 and IS_NVIDIA_HOPPER and TRITON_ABOVE_3_4_0:
+            continue
+        args, state = make_inputs(dtype, grouped=False)
+        for kernel in (fla.chunk_gated_delta_rule, chunk_gated_delta_rule):
+            values_and_grads(kernel, args, state, output_final_state=True)
+        for packed, state_v_first in STATE_LAYOUTS:
+            args, state = make_inputs(dtype, packed=packed, state_v_first=state_v_first)
+            for state_qdq, quantize_w in QDQ_MODES:
+                if state_qdq and not supports_state_qdq:
+                    continue
+                values_and_grads(
+                    chunk_gated_delta_rule,
+                    args,
+                    state,
+                    output_final_state=True,
+                    state_qdq=state_qdq,
+                    state_qdq_block_v=32,
+                    w_quantizer=w_quantizer() if quantize_w else None,
+                    state_v_first=state_v_first,
+                    cu_seqlens=torch.tensor([0, 67, 145], device="cuda", dtype=torch.int32)
+                    if packed
+                    else None,
+                )
+
+    args, state = make_inputs()
+    quantizer = w_quantizer()
+    values_and_grads(
+        chunk_gated_delta_rule, args, state, output_final_state=True, w_quantizer=quantizer
+    )
+    for axis in W_AXES:
+        output, _ = chunk_gated_delta_rule(*args, w_quantizer=w_quantizer(axis))
+        torch.autograd.grad(output.square().sum(), args)
+    a_log = torch.zeros(2, device="cuda", requires_grad=True)
+    bias = torch.zeros_like(a_log, requires_grad=True)
+    output, final = chunk_gated_delta_rule(
+        *args,
+        initial_state=state,
+        output_final_state=True,
+        w_quantizer=quantizer,
+        use_qk_l2norm_in_kernel=True,
+        use_gate_in_kernel=True,
+        A_log=a_log,
+        dt_bias=bias,
+        use_beta_sigmoid_in_kernel=True,
+        allow_neg_eigval=True,
+    )
+    torch.autograd.grad(output.square().sum() + final.square().sum(), (*args, state, a_log, bias))
+    if supports_state_qdq:
+        for block_v in (16, 64, 128):
+            values_and_grads(
+                chunk_gated_delta_rule,
+                args,
+                state,
+                output_final_state=True,
+                state_qdq=True,
+                state_qdq_block_v=block_v,
+            )
+        args, state = make_inputs(packed=True, state_v_first=True)
+        for block_v in (16, 32, 64, 128):
+            _, final = chunk_gated_delta_rule(
+                *args,
+                initial_state=state,
+                output_final_state=True,
+                state_v_first=True,
+                cu_seqlens=torch.tensor([0, 67, 145], device="cuda", dtype=torch.int32),
+                state_qdq=True,
+                state_qdq_block_v=block_v,
+            )
+            torch.autograd.grad(final.sum(), state)
+    torch.cuda.synchronize()
+
+
+@pytest.mark.parametrize("dtype", DTYPES)
 def test_disabled_matches_upstream_forward_and_backward(dtype):
     # Upstream Hopper/TileLang backward cannot handle grouped value heads.
     args, state = make_inputs(dtype, grouped=False)
@@ -109,11 +189,9 @@ def test_disabled_matches_upstream_forward_and_backward(dtype):
         compare(a, e, 0.005 if dtype == torch.bfloat16 else 0.001)
 
 
-@pytest.mark.parametrize(
-    ("state_qdq", "quantize_w"), [(False, False), (False, True), (True, False), (True, True)]
-)
-@pytest.mark.parametrize(("packed", "state_v_first"), [(False, False), (True, True)])
-@pytest.mark.parametrize("dtype", [torch.float32, torch.bfloat16])
+@pytest.mark.parametrize(("state_qdq", "quantize_w"), QDQ_MODES)
+@pytest.mark.parametrize(("packed", "state_v_first"), STATE_LAYOUTS)
+@pytest.mark.parametrize("dtype", DTYPES)
 def test_numerical_surrogate_reference(state_qdq, quantize_w, packed, state_v_first, dtype):
     if state_qdq:
         require_state_qdq()
@@ -161,7 +239,7 @@ def test_w_qdq_saved_once_and_activation_checkpoint_parity():
     handle.remove()
 
 
-@pytest.mark.parametrize("axis", [None, (0, 1), (0, 1, 2)])
+@pytest.mark.parametrize("axis", W_AXES)
 def test_zero_initial_state_and_output_only_training_loss(axis):
     args, _ = make_inputs()
     quantizer = w_quantizer(axis)

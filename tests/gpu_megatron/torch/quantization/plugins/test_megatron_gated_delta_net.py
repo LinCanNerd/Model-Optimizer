@@ -143,16 +143,38 @@ def _test_gdn_qat_helper(rank, size, mode, checkpoint_path):
     assert not torch.equal(restored_gdn[0].in_proj.weight, before)
 
 
-# Cold FLA/TileLang compilation plus a two-rank checkpoint exceeds the lane's 120s default.
-@pytest.mark.timeout(300)
-@pytest.mark.parametrize("tp_size", [1, 2])
-@pytest.mark.parametrize("mode", ["state", "w", "both"])
-def test_gdn_qat_and_sharded_restore(request, tmp_path, tp_size, mode):
-    """Train through state/W QDQ after a Megatron distributed-checkpoint round trip."""
+def _compile_gdn_qat_kernels(rank, size, mode):
+    initialize_for_megatron(
+        tensor_model_parallel_size=size, pipeline_model_parallel_size=1, seed=SEED
+    )
+    model = _make_model(size)
+    forward = get_forward(model)
+    with torch.no_grad():
+        forward(model)
+    sites = ("state", "w") if mode == "both" else (mode,)
+    mtq.quantize(model, _gdn_config(sites))
+    with torch.no_grad():
+        forward(model)
+    model.train()
+    forward(model).sum().backward()
+    torch.cuda.synchronize()
+
+
+@pytest.fixture
+def compiled_gdn_workers(request, tp_size, mode):
+    """Warm the selected QAT path in the same workers, outside the test-call budget."""
     if mode != "w" and torch.cuda.get_device_capability() < (8, 9):
         pytest.skip("State QDQ needs native E4M3 conversion (SM89+)")
     workers = request.getfixturevalue(f"dist_workers_size_{tp_size}")
-    workers.run(_test_gdn_qat_helper, mode, tmp_path)
+    workers.run(_compile_gdn_qat_kernels, mode)
+    return workers
+
+
+@pytest.mark.parametrize("tp_size", [1, 2])
+@pytest.mark.parametrize("mode", ["state", "w", "both"])
+def test_gdn_qat_and_sharded_restore(compiled_gdn_workers, tmp_path, mode):
+    """Train through state/W QDQ after a Megatron distributed-checkpoint round trip."""
+    compiled_gdn_workers.run(_test_gdn_qat_helper, mode, tmp_path)
 
 
 def _test_gdn_context_parallel_helper(rank, size, mode):
