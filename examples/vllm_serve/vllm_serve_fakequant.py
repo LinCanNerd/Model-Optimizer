@@ -53,13 +53,12 @@
 """Thin ``vllm`` CLI shim: translates ``--modelopt-*`` flags to env vars, then delegates
 to vLLM's real CLI (``vllm.entrypoints.cli.main.main``) unmodified.
 
-With no ``--modelopt-*`` flag (and none of QUANT_CFG/KV_QUANT_CFG/MODELOPT_STATE_PATH/
-RECIPE_PATH set in the environment, nor their sidecar files auto-detected next to a local
-model dir), this is a byte-for-byte passthrough to stock vLLM -- fakequant machinery is
-never touched. Install this as the ``vllm`` console script (see pyproject.toml) so
-``vllm serve <model> ...`` works directly; add ``--modelopt-*`` flags (or set the env vars)
-to opt into fakequant -- ``--worker_cls fakequant_worker.FakeQuantWorker`` is then defaulted
-automatically (an explicit ``--worker_cls`` still overrides it).
+Without fakequant settings or recognized local sidecars, the wrapper delegates to
+stock vLLM without installing the fakequant worker. Install this as the ``vllm``
+console script (see pyproject.toml) so ``vllm serve <model> ...`` works directly.
+Add ``--modelopt-*`` flags (or set the env vars) to opt into fakequant.
+The wrapper then defaults to ``--worker_cls fakequant_worker.FakeQuantWorker``;
+an explicit ``--worker_cls`` still overrides it.
 """
 
 import os
@@ -77,22 +76,6 @@ def _is_missing_entrypoint(error: ModuleNotFoundError, entrypoint: str) -> bool:
         missing_module == entrypoint or entrypoint.startswith(f"{missing_module}.")
     )
 
-
-run_server_entrypoint = "vllm.entrypoints.launchers.api_server.entry"
-try:
-    from vllm.entrypoints.launchers.api_server.entry import run_server
-except ModuleNotFoundError as error:
-    if not _is_missing_entrypoint(error, run_server_entrypoint):
-        raise
-    from vllm.entrypoints.openai.api_server import run_server
-
-arg_parser_entrypoint = "vllm.entrypoints.cli.serve"
-try:
-    from vllm.entrypoints.cli.serve import make_arg_parser
-except ModuleNotFoundError as error:
-    if not _is_missing_entrypoint(error, arg_parser_entrypoint):
-        raise
-    from vllm.entrypoints.openai.cli_args import make_arg_parser
 
 vllm_version = version.parse(vllm.__version__)
 if vllm_version <= version.parse("0.11.0"):
@@ -139,8 +122,10 @@ def _parser_has_argument(parser, dest: str) -> bool:
 def _make_vllm_serve_parser():
     try:
         from vllm.entrypoints.openai.cli_args import make_arg_parser
-    except ImportError:
+    except ModuleNotFoundError as error:
         # vLLM 0.29 moved the serve parser out of the OpenAI entrypoint package.
+        if not _is_missing_entrypoint(error, "vllm.entrypoints.openai.cli_args"):
+            raise
         from vllm.entrypoints.cli.serve import make_arg_parser
 
     parser = FlexibleArgumentParser(add_help=False)
@@ -156,15 +141,9 @@ def _bool_env(key: str) -> bool:
     return os.environ.get(key, "").lower() in ("1", "true", "yes")
 
 
-def _find_flag_value(argv: list, *names: str) -> str | None:
-    """Return the value of the first matching --flag/--flag=value in argv, else None."""
-    for i, a in enumerate(argv):
-        for name in names:
-            if a == name:
-                return argv[i + 1] if i + 1 < len(argv) else None
-            if a.startswith(name + "="):
-                return a.split("=", 1)[1]
-    return None
+def _has_flag(argv: list[str], *names: str) -> bool:
+    """Whether argv contains a flag in either --flag or --flag=value form."""
+    return any(arg == name or arg.startswith(f"{name}=") for arg in argv for name in names)
 
 
 def _add_fakequant_args(parser) -> None:
@@ -251,14 +230,13 @@ def _autodetect_fakequant_paths(args) -> None:
     )
     if manual_ptq_requested:
         return
-    if (
-        not args.modelopt_state_path
-        and os.path.exists(f"{model}/vllm_fq_modelopt_state.pth")
-    ):
+    if not args.modelopt_state_path and os.path.exists(f"{model}/vllm_fq_modelopt_state.pth"):
         args.modelopt_state_path = str(Path(model) / "vllm_fq_modelopt_state.pth")
 
     if not args.modelopt_quant_file_path and not args.modelopt_state_path:
-        if os.path.exists(f"{model}/quantizer_state.pth") and os.path.exists(f"{model}/vllm_fq_quantizer_state.yaml"):
+        if os.path.exists(f"{model}/quantizer_state.pth") and os.path.exists(
+            f"{model}/vllm_fq_quantizer_state.yaml"
+        ):
             args.modelopt_quant_file_path = str(Path(model) / "quantizer_state.pth")
             args.modelopt_recipe_path = str(Path(model) / "vllm_fq_quantizer_state.yaml")
 
@@ -341,21 +319,23 @@ def main():
         # Fakequant only actually runs inside FakeQuantWorker; default to it here so
         # requesting fakequant (quant_cfg/state_path/recipe_path) is enough on its own,
         # without also requiring this flag every time. An explicit --worker_cls still wins.
-        if _find_flag_value(rest_argv, "--worker-cls", "--worker_cls") is None:
+        if not _has_flag(rest_argv, "--worker-cls", "--worker_cls"):
             rest_argv = [*rest_argv, "--worker_cls", "fakequant_worker.FakeQuantWorker"]
 
         # Workers (Ray spawn / multi-proc) must be able to import fakequant_worker.
         repo_root = str(Path(__file__).resolve().parent)
         if repo_root not in sys.path:
             sys.path.insert(0, repo_root)
-        os.environ["PYTHONPATH"] = os.environ.get("PYTHONPATH", "") + ":" + repo_root
+        python_path = os.environ.get("PYTHONPATH", "").split(os.pathsep)
+        if repo_root not in python_path:
+            os.environ["PYTHONPATH"] = os.pathsep.join([*filter(None, python_path), repo_root])
 
         _register_ray_env_vars()
 
         # Match the fakequant launcher default: use the decomposed Triton MoE backend when
         # this vLLM version exposes the option. An explicit user selection still wins.
         if _vllm_supports_moe_backend():
-            if _find_flag_value(rest_argv, "--moe-backend", "--moe_backend") is None:
+            if not _has_flag(rest_argv, "--moe-backend", "--moe_backend"):
                 rest_argv = [*rest_argv, "--moe_backend", "triton"]
 
     sys.argv = ["vllm", *rest_argv]
