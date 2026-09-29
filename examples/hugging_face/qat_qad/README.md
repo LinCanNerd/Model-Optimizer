@@ -2,7 +2,7 @@
 
 This tutorial shows how to run QAT and QAD with Hugging Face Transformers: set up the environment, quantize a model, train it, evaluate the checkpoint, and export it for deployment.
 
-For background on QAT and QAD and help choosing between Hugging Face, Megatron Bridge, and Megatron-LM, start with the [QAT/QAD guide](https://nvidia.github.io/Model-Optimizer/guides/quantization_aware_training.html).
+For background on QAT and QAD and help choosing between Hugging Face, Megatron Bridge, and Megatron-LM, start with the [QAT/QAD guide](https://nvidia.github.io/Model-Optimizer/guides/quantization_aware_training_and_distillation.html).
 
 <div align="center">
 
