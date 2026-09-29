@@ -23,7 +23,9 @@ degrades the model more if quantized.
 
 from __future__ import annotations
 
+import contextlib
 import glob
+import io
 import logging
 import os
 import re
@@ -120,20 +122,36 @@ def _quiet_sublogs_during_probe(active_level: int):
     """Silence per-probe ``quantize()`` / inference chatter and restore the
     operator's chosen log level afterwards.
 
-    Yields the ``log_level`` string to pass to ``quantize()`` (which
-    reconfigures the shared ``modelopt.onnx`` logger globally as a side
-    effect at ``modelopt/onnx/quantization/quantize.py:configure_logging``).
-    Maps ``INFO`` -> ``WARNING`` for the probe so the per-target
-    ``[idx/total] scored ...`` progress line stays readable at the default
-    level; ``DEBUG`` / ``WARNING`` / ``ERROR`` pass through unchanged.
-    After the block, restore the CLI level so the progress ``logger.info``
-    still emits and the next probe sees a consistent starting state.
+    Yields a ``(log_level_str, stdout_capture)`` tuple:
+
+    * ``log_level_str`` is passed to ``quantize()``, which reconfigures the
+      shared ``modelopt.onnx`` logger globally as a side effect at
+      ``modelopt/onnx/quantization/quantize.py:configure_logging``. Maps
+      ``INFO`` -> ``WARNING`` so the per-target ``[idx/total] scored ...``
+      progress line stays readable at the default level; ``DEBUG`` /
+      ``WARNING`` / ``ERROR`` pass through unchanged. On block exit,
+      restore the CLI level so the progress ``logger.info`` still emits
+      and the next probe starts consistent.
+    * ``stdout_capture`` is a ``StringIO`` that catches ``print()``
+      output from inside the block when quieting is active. Onnxruntime's
+      calibrators (``EntropyCalibrater`` / ``MinMaxCalibrater``) emit
+      per-probe progress via raw ``print()`` -- bypassing logging -- so
+      logger-level tweaks alone can't suppress them. Redirecting stdout
+      catches those lines; failure handlers can dump ``.getvalue()`` at
+      ``logger.debug`` for post-mortem. When the level passes through
+      (DEBUG), stdout is not redirected and the buffer stays empty.
     """
     quiet = logging.WARNING if active_level == logging.INFO else active_level
     if quiet != active_level:
         configure_logging(level=quiet)
+    capture = io.StringIO()
+    stdout_ctx = (
+        contextlib.redirect_stdout(capture) if quiet != active_level
+        else contextlib.nullcontext()
+    )
     try:
-        yield logging.getLevelName(quiet)
+        with stdout_ctx:
+            yield logging.getLevelName(quiet), capture
     finally:
         if quiet != active_level:
             configure_logging(level=active_level)
@@ -251,6 +269,8 @@ def score(
     calibration_eps_list = list(calibration_eps)
     active_level = getattr(logging, log_level.upper(), logging.INFO)
     with _quiet_sublogs_during_probe(active_level):
+        # (log_level_str, capture) unused for the one-shot reference forward pass -- if it fails,
+        # the whole score() call fails and the traceback carries the detail.
         ref_outputs = _run_inference(onnx_path, calib_dict, calibration_eps_list)
 
     scores: dict[str, float] = {}
@@ -267,8 +287,9 @@ def score(
                 target_dir, f"probe_{_sanitize_filename(target_name)}.quant.onnx"
             )
             step_start = time.monotonic()
+            captured_stdout = None
             try:
-                with _quiet_sublogs_during_probe(active_level) as probe_log_level:
+                with _quiet_sublogs_during_probe(active_level) as (probe_log_level, captured_stdout):
                     quantize(
                         onnx_path=onnx_path,
                         quantize_mode=target_precision,
@@ -292,6 +313,14 @@ def score(
                     f"({type(e).__name__}); recording as unprobed."
                 )
                 logger.debug(f"probe failure detail for '{target_name}':", exc_info=True)
+                # Surface the swallowed stdout (ORT calibrator prints, etc.) at DEBUG so operators
+                # who set ``--log_level DEBUG`` and re-run get the pre-crash trace back.
+                if captured_stdout is not None:
+                    swallowed = captured_stdout.getvalue()
+                    if swallowed:
+                        logger.debug(
+                            f"suppressed stdout from probe '{target_name}':\n{swallowed}"
+                        )
                 failed.append(target_name)
                 continue
 

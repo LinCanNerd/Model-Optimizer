@@ -309,8 +309,9 @@ class TestQuietSublogsDuringProbe:
             lambda level, log_file=None: calls.append(level),
         )
         import logging as _l
-        with score_mod._quiet_sublogs_during_probe(_l.INFO) as probe_ll:
+        with score_mod._quiet_sublogs_during_probe(_l.INFO) as (probe_ll, capture):
             assert probe_ll == "WARNING"
+            assert capture.getvalue() == ""
         # enter -> WARNING, exit -> INFO
         assert calls == [_l.WARNING, _l.INFO]
 
@@ -322,7 +323,7 @@ class TestQuietSublogsDuringProbe:
             lambda level, log_file=None: calls.append(level),
         )
         import logging as _l
-        with score_mod._quiet_sublogs_during_probe(_l.DEBUG) as probe_ll:
+        with score_mod._quiet_sublogs_during_probe(_l.DEBUG) as (probe_ll, capture):
             assert probe_ll == "DEBUG"
         # No reconfigure calls -- DEBUG mode wants the firehose.
         assert calls == []
@@ -335,7 +336,7 @@ class TestQuietSublogsDuringProbe:
             lambda level, log_file=None: calls.append(level),
         )
         import logging as _l
-        with score_mod._quiet_sublogs_during_probe(_l.WARNING) as probe_ll:
+        with score_mod._quiet_sublogs_during_probe(_l.WARNING) as (probe_ll, capture):
             assert probe_ll == "WARNING"
         assert calls == []
 
@@ -352,3 +353,34 @@ class TestQuietSublogsDuringProbe:
                 raise RuntimeError("probe boom")
         # enter -> WARNING, exit (via finally) -> INFO
         assert calls == [_l.WARNING, _l.INFO]
+
+    def test_info_captures_print_output_to_buffer(self, monkeypatch):
+        """ORT's calibrator emits progress via ``print()`` (bypassing logging).
+        At INFO the context manager redirects stdout to a StringIO so that
+        noise doesn't drown out the per-target progress line; the captured
+        content is accessible via the yielded buffer for post-mortem."""
+        score_mod = self._load()
+        monkeypatch.setattr(score_mod, "configure_logging", lambda level, log_file=None: None)
+        import logging as _l
+        import sys
+        outer_stdout = sys.stdout
+        with score_mod._quiet_sublogs_during_probe(_l.INFO) as (probe_ll, capture):
+            assert probe_ll == "WARNING"
+            print("Finding optimal threshold for each tensor using 'entropy' algorithm ...")
+            print("Number of tensors : 2")
+            assert sys.stdout is not outer_stdout  # redirected
+        assert sys.stdout is outer_stdout  # restored
+        assert "Finding optimal threshold" in capture.getvalue()
+        assert "Number of tensors : 2" in capture.getvalue()
+
+    def test_debug_passes_print_through_unchanged(self, monkeypatch, capsys):
+        """At DEBUG, no stdout redirection -- prints reach the real stdout
+        so operators asking for the firehose actually see it."""
+        score_mod = self._load()
+        monkeypatch.setattr(score_mod, "configure_logging", lambda level, log_file=None: None)
+        import logging as _l
+        with score_mod._quiet_sublogs_during_probe(_l.DEBUG) as (probe_ll, capture):
+            print("firehose line")
+        # Captured by pytest's capsys, not by our StringIO.
+        assert capture.getvalue() == ""
+        assert "firehose line" in capsys.readouterr().out
