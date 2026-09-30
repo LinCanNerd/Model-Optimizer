@@ -7,7 +7,9 @@ monitoring), see the common skill's `slurm-setup.md`.
 
 ## 1. Container
 
-Get the recommended image version from `examples/hf_ptq/README.md`, then look for an existing `.sqsh` file:
+Use `nvcr.io/nvidia/pytorch:26.09-py3` for Hugging Face PTQ (AMD64/ARM64).
+Keep inference frameworks in the downstream serving environment. Look for a
+cached `.sqsh` of this image and verify its provenance before reuse:
 
 ```bash
 ls *.sqsh ../*.sqsh ~/containers/*.sqsh 2>/dev/null
@@ -21,17 +23,22 @@ ls *.sqsh ../*.sqsh ~/containers/*.sqsh 2>/dev/null
 export ENROOT_CACHE_PATH=/path/to/writable/enroot-cache
 export ENROOT_DATA_PATH=/path/to/writable/enroot-data
 mkdir -p "$ENROOT_CACHE_PATH" "$ENROOT_DATA_PATH"
-enroot import --output /path/to/container.sqsh docker://nvcr.io#nvidia/tensorrt-llm/release:<version>
+enroot import --output /path/to/container.sqsh docker://nvcr.io#nvidia/pytorch:26.09-py3
 ```
 
-If enroot import fails (e.g., permission errors on lustre), use pyxis inline pull as fallback — pass the NGC URI directly to `--container-image="nvcr.io/nvidia/tensorrt-llm/release:<version>"`. Note this re-pulls on every job.
+If enroot import fails (e.g., permission errors on lustre), use pyxis inline pull as fallback — pass `--container-image="nvcr.io/nvidia/pytorch:26.09-py3"`. Note this re-pulls on every job.
 
 ### Container dependency pitfalls
 
-**New models may need newer transformers** than what's in the container:
+Do not assume the base image supplies compatible Python dependencies. Choose a
+model-tested Transformers pin within the source ModelOpt's supported range,
+not unconstrained latest. For Qwen3.5/3.8 (`qwen3_5`), use `5.14.1`; `5.5.4`
+incorrectly classifies VLM language-model weights as missing during export.
+Record the image digest and resolved ModelOpt, Torch, Transformers, and Accelerate
+versions. Preserve the container's compatible Torch/CUDA stack when resolving deps.
 
 ```bash
-pip install -U transformers
+pip install "transformers==5.14.1"  # Qwen3.5/3.8; select other models' pins separately
 ```
 
 For unlisted models that need unreleased transformers (e.g., from git), see `references/unsupported-models.md` Step A.
@@ -52,13 +59,13 @@ export PYTHONPATH=/path/to/Model-Optimizer:$PYTHONPATH
 
 ```bash
 unset PIP_CONSTRAINT
-pip install -U transformers   # now upgrades and resolves with new deps included
+pip install "transformers==5.14.1"  # Qwen3.5/3.8 example; recheck dependency compatibility
 ```
 
 If that still conflicts, fall back to `--no-deps` (skips new deps — may need to add missing ones manually):
 
 ```bash
-pip install -U transformers --no-deps
+pip install "transformers==5.14.1" --no-deps  # Qwen3.5/3.8 example; then check imports/deps
 ```
 
 ---
