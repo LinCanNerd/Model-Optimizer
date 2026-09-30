@@ -260,6 +260,8 @@ def main(argv: list[str] | None = None) -> int:
             "absolute thresholds. See calibration_source in the output JSON."
         )
 
+    output_json = args.output_json or _default_output_json(args.onnx_path)
+
     result = score(
         onnx_path=args.onnx_path,
         calibration_data=args.calibration_data_path,  # path -> score() delegates to its loader
@@ -271,9 +273,9 @@ def main(argv: list[str] | None = None) -> int:
         calibration_eps=args.calibration_eps,
         op_types_scope=args.op_types_scope,
         log_level=args.log_level,
+        checkpoint_path=output_json,
     )
     payload = {"onnx_path": os.path.abspath(args.onnx_path), **result}
-    output_json = args.output_json or _default_output_json(args.onnx_path)
     os.makedirs(os.path.dirname(os.path.abspath(output_json)) or ".", exist_ok=True)
     with open(output_json, "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2, sort_keys=True)

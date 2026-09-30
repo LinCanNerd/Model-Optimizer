@@ -26,6 +26,7 @@ from __future__ import annotations
 import contextlib
 import glob
 import io
+import json
 import logging
 import os
 import re
@@ -157,6 +158,41 @@ def _quiet_sublogs_during_probe(active_level: int):
             configure_logging(level=active_level)
 
 
+def _load_checkpoint(checkpoint_path: str | None) -> tuple[dict[str, float], list[str]]:
+    if not checkpoint_path or not os.path.exists(checkpoint_path):
+        return {}, []
+    try:
+        with open(checkpoint_path, encoding="utf-8") as f:
+            payload = json.load(f)
+    except Exception as e:
+        logger.warning("Ignoring unreadable sensitivity checkpoint %s (%s).", checkpoint_path, type(e).__name__)
+        return {}, []
+    raw_scores = payload.get("scores") or {}
+    raw_failed = payload.get("failed") or []
+    if not isinstance(raw_scores, dict):
+        logger.warning("Ignoring sensitivity checkpoint %s with non-dict scores.", checkpoint_path)
+        return {}, []
+    scores: dict[str, float] = {}
+    for name, value in raw_scores.items():
+        try:
+            scores[str(name)] = float(value)
+        except (TypeError, ValueError):
+            logger.warning("Skipping non-numeric checkpoint score for %s in %s.", name, checkpoint_path)
+    failed = [str(name) for name in raw_failed] if isinstance(raw_failed, list) else []
+    return scores, failed
+
+
+def _write_checkpoint(checkpoint_path: str | None, payload: dict) -> None:
+    if not checkpoint_path:
+        return
+    os.makedirs(os.path.dirname(os.path.abspath(checkpoint_path)) or ".", exist_ok=True)
+    tmp_path = f"{checkpoint_path}.tmp"
+    with open(tmp_path, "w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2, sort_keys=True)
+        f.write("\n")
+    os.replace(tmp_path, checkpoint_path)
+
+
 def score(
     onnx_path: str,
     calibration_data: (
@@ -172,6 +208,7 @@ def score(
     calibration_eps: list[str] = ["cpu", "cuda:0", "trt"],
     op_types_scope: Sequence[str] | None = None,
     work_dir: str | None = None,
+    checkpoint_path: str | None = None,
 ) -> dict:
     """Rank quantization targets by their impact on model output.
 
@@ -265,16 +302,44 @@ def score(
     if not targets:
         logger.warning("No quantizable targets found under the requested scope.")
 
+    scores, failed = _load_checkpoint(checkpoint_path)
+    failed_set = set(failed)
+
+    def result_payload(complete: bool) -> dict:
+        return {
+            "scores": scores,
+            "failed": sorted(failed_set),
+            "calibration_source": calibration_source.value,
+            "num_calibration_samples": num_samples,
+            "metric": metric,
+            "granularity": granularity,
+            "target_precision": target_precision,
+            "complete": complete,
+        }
+
+    def save_checkpoint(complete: bool = False) -> None:
+        payload = {"onnx_path": os.path.abspath(onnx_path), **result_payload(complete)}
+        _write_checkpoint(checkpoint_path, payload)
+
+    completed_targets = set(scores) | failed_set
+    if completed_targets:
+        logger.info(
+            "Resuming sensitivity scan from %s (%d scored, %d unprobed).",
+            checkpoint_path, len(scores), len(failed_set),
+        )
+
     metric_fn = _METRIC_FUNCS[metric]
     calibration_eps_list = list(calibration_eps)
     active_level = getattr(logging, log_level.upper(), logging.INFO)
+    if len(completed_targets) >= len(targets):
+        save_checkpoint(complete=True)
+        return result_payload(complete=True)
+
     with _quiet_sublogs_during_probe(active_level):
         # (log_level_str, capture) unused for the one-shot reference forward pass -- if it fails,
         # the whole score() call fails and the traceback carries the detail.
         ref_outputs = _run_inference(onnx_path, calib_dict, calibration_eps_list)
 
-    scores: dict[str, float] = {}
-    failed: list[str] = []
     use_tempdir = work_dir is None
     tmp_ctx = tempfile.TemporaryDirectory() if use_tempdir else None
     target_dir = tmp_ctx.name if tmp_ctx is not None else work_dir
@@ -283,6 +348,8 @@ def score(
         os.makedirs(target_dir, exist_ok=True)
         wall_start = time.monotonic()
         for idx, (target_name, quantize_kwargs) in enumerate(targets, start=1):
+            if target_name in scores or target_name in failed_set:
+                continue
             probe_path = os.path.join(
                 target_dir, f"probe_{_sanitize_filename(target_name)}.quant.onnx"
             )
@@ -321,7 +388,8 @@ def score(
                         logger.debug(
                             f"suppressed stdout from probe '{target_name}':\n{swallowed}"
                         )
-                failed.append(target_name)
+                failed_set.add(target_name)
+                save_checkpoint()
                 continue
 
             # Distinguish "probe inserted no QDQ" (unprobed) from "probe inserted QDQ and drift
@@ -331,10 +399,12 @@ def score(
                     f"[{idx}/{len(targets)}] quantize() inserted no Q/DQ nodes for target "
                     f"'{target_name}' -- recording as unprobed instead of a 0.0 drift score."
                 )
-                failed.append(target_name)
+                failed_set.add(target_name)
+                save_checkpoint()
                 continue
 
             scores[target_name] = _pair_metric(ref_outputs, quant_outputs, metric_fn)
+            save_checkpoint()
             logger.info(
                 f"[{idx}/{len(targets)}] scored '{target_name}' = {scores[target_name]:.6g} "
                 f"(step {time.monotonic() - step_start:.1f}s, total {time.monotonic() - wall_start:.1f}s)"
@@ -343,15 +413,8 @@ def score(
         if tmp_ctx is not None:
             tmp_ctx.cleanup()
 
-    return {
-        "scores": scores,
-        "failed": failed,
-        "calibration_source": calibration_source.value,
-        "num_calibration_samples": num_samples,
-        "metric": metric,
-        "granularity": granularity,
-        "target_precision": target_precision,
-    }
+    save_checkpoint(complete=True)
+    return result_payload(complete=True)
 
 
 def _resolve_calibration_data(
