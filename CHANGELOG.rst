@@ -107,6 +107,7 @@ Changelog
 
 - Fix Megatron unified HF export of MoE models with grouped-GEMM experts when only the experts are quantized (e.g. ``nvfp4_experts_only-*`` recipes): ``hf_quant_config.json`` and the ``quantization_config`` in ``config.json`` were not written, so the quantized experts were served as unquantized weights. Re-export such checkpoints.
 - Fix Hugging Face exports dropping off-index safetensors such as GLM-4.7's ``mtp.safetensors``.
+- Fix ``examples/hf_ptq`` exports setting ``pad_token`` to the EOS token in the tokenizer files; the source checkpoint's tokenizer files are now exported unchanged.
 - Fix Megatron-Core checkpoint saving for quantized grouped MoE experts when tensor and expert parallelism are both enabled.
 - Fix unified HuggingFace export of RADIO-based VLMs retaining post-conversion vision and
   projector names instead of restoring the hub layout; deployment loaders could skip those weights.
