@@ -13,6 +13,7 @@ Changelog
 
 *Quantization*
 
+- Add ``--modelopt-*`` options to the ``examples/vllm_serve`` vLLM CLI for fakequant calibration and checkpoint reload. Pass a quantization config or recipe with a quantizer-state file, or use ``--modelopt-state-path`` to restore a full ModelOpt state.
 - Add composed Hugging Face AutoQuantize recipes that run fixed PTQ or weight AutoQuantize before
   a separate KV-cache AutoQuantize stage, with independent resumable checkpoints for the weight and
   KV searches. Uniform-weight plus layer-wise mixed-KV exports are marked unsupported for deployment
