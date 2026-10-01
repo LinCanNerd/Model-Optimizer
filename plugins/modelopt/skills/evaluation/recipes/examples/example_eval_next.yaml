@@ -43,8 +43,10 @@ services:
       - ???:/cache/huggingface
     generation: {temperature: 1.0, top_p: 0.95}   # from model card (reasoning mode); adjust per card — mandatory lookup (references/model-card-research.md), same as 0.2.6
     proxy:
-      request_timeout: 3600                      # ALWAYS set; MUST be >= benchmarks[].solver.agent_kwargs.llm_kwargs.timeout
-      extra_body: {skip_special_tokens: false}   # add model-card sampling extras here if the card specifies them; mirror in tags
+      request_timeout: 3600                      # ALWAYS set (else inherits the model fragment); MUST be >= benchmarks[].solver.agent_kwargs.llm_kwargs.timeout
+      extra_body:                                # card extras only, no no-op defaults; reasoning toggles in chat_template_kwargs
+        skip_special_tokens: false
+        chat_template_kwargs: {enable_thinking: true}   # toggle key is per model family
       model_traffic: {capture_request_body: true}  # per service, never in a shared block
       interceptors:                              # lists REPLACE on merge — restate the whole chain
         # SWE-bench prepends system_message + turn_counter — see swebench_verified.md
@@ -116,7 +118,7 @@ output:
       copy_logs: true
       exclude_patterns: ["shard*", "model_traffic.jsonl"]   # captured request bodies (FEA-224) stay in the run dir
       description: ???               # '<model> | T=1.0 top_p=0.95 | <benchmark> (timeout_strategy=…) | r8'
-      # Sampling tags mirror generation fields.
-      # task_name = upstream slug; nemo-evaluator-next-version = eval_image version.
+      # model/checkpoint_path/benchmark drive dashboard attribution (engine logs only a generic metric key); temperature/top_p mirror generation above.
+      # task_name = upstream slug (SWE-bench: swebench-verified); nemo-evaluator-next-version = eval_image version.
       tags: {framework: vllm, model: "???", checkpoint_path: "???", benchmark: "???", task_name: terminal-bench-2.1, nemo-evaluator-next-version: "0.5.0.1",
         temperature: '1.0', top_p: '0.95'}
