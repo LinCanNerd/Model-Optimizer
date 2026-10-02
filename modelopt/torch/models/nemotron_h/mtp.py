@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""MTP construction and quantization calibration hooks for Nemotron-H checkpoints."""
+"""Checkpoint loading and calibration support for the Nemotron-H MTP tail."""
 
 from __future__ import annotations
 

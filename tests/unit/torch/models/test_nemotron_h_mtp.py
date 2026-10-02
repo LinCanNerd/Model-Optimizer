@@ -23,10 +23,11 @@ from safetensors.torch import save_file
 from transformers import PreTrainedModel
 
 import modelopt.torch.quantization as mtq
-from examples.hf_ptq.models import nemotron_h as adapter
-from examples.hf_ptq.models.nemotron_h import _normalize_mtp_block_types
 from modelopt.torch.export.quant_utils import get_activation_scaling_factor, postprocess_state_dict
 from modelopt.torch.export.unified_export_hf import _process_quantized_modules
+from modelopt.torch.models import hf
+from modelopt.torch.models.nemotron_h import mtp as adapter
+from modelopt.torch.models.nemotron_h.mtp import _normalize_mtp_block_types
 from modelopt.torch.quantization.config import QuantizerAttributeConfig
 from modelopt.torch.quantization.model_calib import (
     _needs_activation_forward_for_max_calib,
@@ -134,15 +135,19 @@ def tiny_checkpoint(tmp_path, monkeypatch):
     return TinyOmni, model, tmp_path
 
 
-def test_loading_places_mtp_weights_and_restores_constructor(tiny_checkpoint, monkeypatch):
+@pytest.mark.parametrize("model_type", ["nemotron_h", "nemotron_h_omni"])
+def test_loading_places_mtp_weights_and_restores_constructor(
+    tiny_checkpoint, monkeypatch, model_type
+):
+    """Both checkpoint model types load exact MTP weights without leaking constructor patches."""
     cls, source, checkpoint = tiny_checkpoint
     original_init = cls.__init__
     for _ in range(2):
-        with adapter.prepare_for_loading(checkpoint, True):
+        with hf.prepare_model_for_loading(model_type, checkpoint, True):
             loaded, info = cls.from_pretrained(checkpoint, output_loading_info=True)
         assert cls.__init__ is original_init
         assert not info["missing_keys"] and not info["unexpected_keys"]
-        assert adapter.mtp_loaded_during_model_load(loaded)
+        assert hf.mtp_loaded_during_model_load(loaded)
         for name, value in source.state_dict().items():
             torch.testing.assert_close(loaded.state_dict()[name], value, rtol=0, atol=0)
         assert not hasattr(cls(source.config).language_model, "mtp")
@@ -234,9 +239,11 @@ def test_calibration_forward_and_export(tiny_checkpoint, activation):
     inputs = torch.tensor([[1, 2, 3, 4]])
     with torch.no_grad():
         expected = model(inputs, use_cache=False).logits
-    assert adapter.prepare_for_calibration(model)
+    original_forward = language_model.forward
+    hf.prepare_model_for_calibration(model)
     wrapped_forward = language_model.forward
-    assert adapter.prepare_for_calibration(model)
+    assert wrapped_forward is not original_forward
+    hf.prepare_model_for_calibration(model)
     assert language_model.forward is wrapped_forward
     calls = []
     mtp.register_forward_hook(lambda *_: calls.append(True))
@@ -259,6 +266,15 @@ def test_calibration_forward_and_export(tiny_checkpoint, activation):
         _process_quantized_modules(model, torch.bfloat16)
         exported = postprocess_state_dict(model.state_dict(), maxbound=448, quantization=None)
         torch.testing.assert_close(exported[f"{projection_name}.input_scale"], expected_scale)
+
+
+def test_lifecycle_dispatch_ignores_unsupported_models():
+    """Unrelated model families need neither checkpoint inspection nor auxiliary forwards."""
+    with hf.prepare_model_for_loading("unsupported", "unused-checkpoint", False):
+        pass
+    model = torch.nn.Linear(2, 2)
+    hf.prepare_model_for_calibration(model)
+    assert not hf.mtp_loaded_during_model_load(model)
 
 
 @pytest.mark.parametrize("failure", ["base", "mtp"])

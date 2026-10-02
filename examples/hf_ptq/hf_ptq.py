@@ -52,7 +52,6 @@ from example_utils import (
     setup_distributed_args,
     validate_fsdp2_supported,
 )
-from models import prepare_model_for_calibration, prepare_model_for_loading
 from torch.utils.data import DataLoader
 from transformers import (
     AutoConfig,
@@ -86,6 +85,7 @@ from modelopt.torch.export import (
 from modelopt.torch.export.layerwise_export import LayerwiseExporter
 from modelopt.torch.export.model_utils import get_language_model_from_vl, is_multimodal_model
 from modelopt.torch.export.trtllm import export_tensorrt_llm_checkpoint
+from modelopt.torch.models.hf import prepare_model_for_calibration, prepare_model_for_loading
 from modelopt.torch.quantization.config import need_calibration
 from modelopt.torch.quantization.plugins.accelerate import init_quantized_weights
 from modelopt.torch.quantization.utils import is_quantized

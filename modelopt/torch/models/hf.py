@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Model-specific lifecycle hooks for the Hugging Face PTQ example."""
+"""Dispatch optional Hugging Face loading and calibration hooks to per-model packages."""
 
 import importlib
 from contextlib import nullcontext
@@ -24,10 +24,10 @@ __all__ = [
     "prepare_model_for_loading",
 ]
 
-# model_type -> module name under this package
+# Keep modeling dependencies lazy: importing model specs must not import calibration code.
 _PLUGINS = {
-    "nemotron_h": "nemotron_h",
-    "nemotron_h_omni": "nemotron_h",
+    "nemotron_h": "nemotron_h.mtp",
+    "nemotron_h_omni": "nemotron_h.mtp",
 }
 
 

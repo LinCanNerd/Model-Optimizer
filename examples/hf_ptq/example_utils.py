@@ -33,7 +33,6 @@ import torch
 import transformers
 from accelerate import infer_auto_device_map, init_empty_weights
 from accelerate.utils import get_max_memory
-from models import prepare_model_for_loading
 from safetensors import safe_open
 from transformers import (
     AutoConfig,
@@ -46,6 +45,7 @@ from transformers import (
 )
 
 from modelopt.torch.export.model_utils import is_multimodal_model
+from modelopt.torch.models.hf import prepare_model_for_loading
 from modelopt.torch.utils.plugins.hf_checkpoint_utils import (
     copy_non_safetensor_files_from_ckpt,
     copy_off_index_safetensors,
