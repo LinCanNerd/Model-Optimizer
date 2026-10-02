@@ -19,9 +19,12 @@ from __future__ import annotations
 
 import copy
 import inspect
+import json
+import re
 import weakref
 from contextlib import contextmanager
 from functools import wraps
+from pathlib import Path
 
 import torch
 from safetensors import SafetensorError
@@ -29,6 +32,7 @@ from transformers.dynamic_module_utils import get_class_from_dynamic_module
 from transformers.masking_utils import create_causal_mask
 
 from modelopt.torch.quantization.model_calib import _needs_activation_forward_for_max_calib
+from modelopt.torch.utils import warn_rank_0
 from modelopt.torch.utils.plugins.hf_checkpoint_utils import indexed_weight_map
 
 __all__ = ["mtp_loaded_during_model_load", "prepare_for_calibration", "prepare_for_loading"]
@@ -54,16 +58,33 @@ def _normalize_mtp_block_types(block_types, mixer_types):
     return normalized
 
 
-def _has_nemotron_h_mtp(checkpoint_path: str) -> bool:
-    """Return whether a local checkpoint contains the flattened NemotronH MTP tail."""
+def _get_mtp_layout(checkpoint_path: str) -> tuple[str, int] | None:
+    """Return the flattened MTP prefix and block count, rejecting unsupported tensor layouts."""
     try:
         weight_map = indexed_weight_map(checkpoint_path)
     except (OSError, ValueError, SafetensorError):
-        return False
-    return (
-        "language_model.mtp.layers.0.eh_proj.weight" in weight_map
-        and "language_model.mtp.layers.1.final_layernorm.weight" in weight_map
-    )
+        return None
+    matches = [
+        match
+        for name in weight_map
+        if (match := re.fullmatch(r"((?:.*\.)?)mtp\.layers\.(\d+)\.(.+)", name))
+    ]
+    if not matches:
+        return None
+    prefixes = {match[1] for match in matches}
+    prefix = matches[0][1]
+    layers = {int(match[2]) for match in matches}
+    if (
+        len(prefixes) != 1
+        or prefix not in ("", "language_model.")
+        or sorted(layers) != list(range(len(layers)))
+        or f"{prefix}mtp.layers.0.eh_proj.weight" not in weight_map
+        or f"{prefix}mtp.layers.{max(layers)}.final_layernorm.weight" not in weight_map
+    ):
+        raise ValueError(
+            "Unsupported Nemotron-H MTP tensor layout; refusing unquantized passthrough"
+        )
+    return prefix, len(layers)
 
 
 class _NemotronHMTP(torch.nn.Module):
@@ -97,7 +118,7 @@ class _NemotronHMTP(torch.nn.Module):
         )
 
     def forward(self, hidden_states, decoder_input, attention_mask=None, position_ids=None):
-        first_layer, *remaining_layers = self.layers
+        first_layer = self.layers[0]
         decoder_input = torch.cat(
             (decoder_input[:, 1:, :], torch.zeros_like(decoder_input[:, :1, :])), dim=1
         )
@@ -111,41 +132,72 @@ class _NemotronHMTP(torch.nn.Module):
             past_key_values=None,
             position_ids=position_ids,
         )
-        mtp_hidden = first_layer(
-            mtp_hidden, attention_mask=attention_mask, position_ids=position_ids, use_cache=False
-        )
-        for layer in remaining_layers:
-            mtp_hidden = layer(mtp_hidden, use_cache=False)
+        for layer in self.layers:
+            mtp_hidden = layer(
+                mtp_hidden,
+                attention_mask=attention_mask,
+                position_ids=position_ids,
+                use_cache=False,
+            )
         return self.layers[-1].final_layernorm(mtp_hidden)
 
 
 @contextmanager
 def prepare_for_loading(checkpoint_path: str, trust_remote_code: bool):
     """Scope MTP construction to a checkpoint load, before its weights are placed."""
-    if not _has_nemotron_h_mtp(checkpoint_path):
+    layout = _get_mtp_layout(checkpoint_path)
+    config_path = Path(checkpoint_path) / "config.json"
+    config = json.loads(config_path.read_text()) if config_path.exists() else {}
+    if layout is None:
+        configs = (config, config.get("llm_config") or {}, config.get("text_config") or {})
+        if any((cfg.get("num_nextn_predict_layers") or 0) > 0 for cfg in configs):
+            warn_rank_0(
+                "Nemotron-H config declares MTP but no MTP tensors were found; "
+                "MTP will not be constructed or quantized.",
+                stacklevel=2,
+            )
         yield
         return
-    if not trust_remote_code:
-        raise ValueError("Loading Nemotron-H MTP remote code requires trust_remote_code=True")
 
-    omni_class = get_class_from_dynamic_module(
-        "modeling_nemotron_h_omni.NemotronH_Omni_Reasoning_V3", checkpoint_path
-    )
-    original_init = omni_class.__init__
+    prefix, num_blocks = layout
+    class_ref = config.get("auto_map", {}).get("AutoModelForCausalLM")
+    if class_ref is None and prefix:
+        class_ref = "modeling_nemotron_h_omni.NemotronH_Omni_Reasoning_V3"
+    if class_ref is not None:
+        if not trust_remote_code:
+            raise ValueError("Loading Nemotron-H MTP remote code requires trust_remote_code=True")
+        model_class = get_class_from_dynamic_module(class_ref, checkpoint_path)
+    else:
+        # The native class is optional for unrelated models and remote-code checkpoints.
+        from transformers.models.nemotron_h.modeling_nemotron_h import NemotronHForCausalLM
+
+        model_class = NemotronHForCausalLM
+    original_init = model_class.__init__
+    constructed = False
 
     @wraps(original_init)
     def init_with_mtp(self, *args, **kwargs):
+        nonlocal constructed
         original_init(self, *args, **kwargs)
-        language_model = self.language_model
+        language_model = self.get_submodule(prefix.rstrip(".")) if prefix else self
         if not hasattr(language_model, "mtp"):
             language_model.mtp = _NemotronHMTP(language_model.config)
+        if len(language_model.mtp.layers) != num_blocks:
+            raise ValueError("Nemotron-H MTP block count does not match the checkpoint tensors")
         _MTP_MODELS.add(language_model)
+        constructed = True
 
-    omni_class.__init__ = init_with_mtp
+    model_class.__init__ = init_with_mtp
     try:
         yield
+        if not constructed:
+            warn_rank_0(
+                "Nemotron-H MTP tensors were found but the prepared model class was not "
+                "constructed; MTP weights may remain unquantized.",
+                stacklevel=2,
+            )
     finally:
-        omni_class.__init__ = original_init
+        model_class.__init__ = original_init
 
 
 def mtp_loaded_during_model_load(model) -> bool:
@@ -156,9 +208,7 @@ def mtp_loaded_during_model_load(model) -> bool:
 
 def prepare_for_calibration(full_model) -> bool:
     """Install an MTP forward for recipes with calibrated MTP activation quantizers."""
-    language_model = getattr(full_model, "language_model", None)
-    if language_model is None:
-        return False
+    language_model = getattr(full_model, "language_model", full_model)
 
     mtp = getattr(language_model, "mtp", None)
     if mtp is None:

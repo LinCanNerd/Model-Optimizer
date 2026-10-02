@@ -15,12 +15,13 @@
 
 import copy
 import json
+import warnings
 from unittest.mock import Mock
 
 import pytest
 import torch
 from safetensors.torch import save_file
-from transformers import PreTrainedModel
+from transformers import AutoModelForCausalLM, PreTrainedModel
 
 import modelopt.torch.quantization as mtq
 from modelopt.torch.export.quant_utils import get_activation_scaling_factor, postprocess_state_dict
@@ -78,7 +79,7 @@ def test_checkpoint_detection_and_consent(tmp_path, monkeypatch, layout):
     loader = Mock(side_effect=AssertionError("Untrusted remote code executed"))
     monkeypatch.setattr(adapter, "get_class_from_dynamic_module", loader)
     detected = layout in ("sharded", "single")
-    assert adapter._has_nemotron_h_mtp(tmp_path) == detected
+    assert adapter._get_mtp_layout(tmp_path) == (("language_model.", 2) if detected else None)
     if detected:
         with (
             pytest.raises(ValueError, match="trust_remote_code=True"),
@@ -91,9 +92,49 @@ def test_checkpoint_detection_and_consent(tmp_path, monkeypatch, layout):
     loader.assert_not_called()
 
 
-@pytest.fixture
-def tiny_checkpoint(tmp_path, monkeypatch):
+@pytest.mark.parametrize("config_key", [None, "llm_config", "text_config"])
+@pytest.mark.parametrize("declared", [False, True])
+def test_missing_mtp_weights_warn_without_constructing(tmp_path, monkeypatch, config_key, declared):
+    config = {"num_nextn_predict_layers": int(declared)}
+    if config_key:
+        config = {config_key: config}
+    (tmp_path / "config.json").write_text(json.dumps(config))
+    loader = Mock(side_effect=AssertionError("No remote code is needed without MTP weights"))
+    monkeypatch.setattr(adapter, "get_class_from_dynamic_module", loader)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        with hf.prepare_model_for_loading("nemotron_h", tmp_path, False):
+            pass
+    assert len(caught) == int(declared)
+    if declared:
+        assert "config declares MTP but no MTP tensors were found" in str(caught[0].message)
+    loader.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "keys",
+    [
+        ["mtp.layers.0.eh_proj.weight"],
+        ["mtp.layers.0.eh_proj.weight", "mtp.layers.3.final_layernorm.weight"],
+        ["mtp.layers.0.eh_proj.weight", "language_model.mtp.layers.1.final_layernorm.weight"],
+        ["decoder.mtp.layers.0.eh_proj.weight", "decoder.mtp.layers.1.final_layernorm.weight"],
+    ],
+)
+def test_unsupported_mtp_layout_rejects_silent_passthrough(tmp_path, keys):
+    (tmp_path / "model.safetensors.index.json").write_text(
+        json.dumps({"weight_map": dict.fromkeys(keys, "model-00001.safetensors")})
+    )
+    with (
+        pytest.raises(ValueError, match="Unsupported Nemotron-H MTP tensor layout"),
+        adapter.prepare_for_loading(tmp_path, False),
+    ):
+        pytest.fail("Unsupported MTP tensors would be silently passed through")
+
+
+@pytest.fixture(params=[("wrapped", 2), ("wrapped", 4), ("plain", 2), ("plain", 4)])
+def tiny_checkpoint(tmp_path, monkeypatch, request):
     native = pytest.importorskip("transformers.models.nemotron_h.modeling_nemotron_h")
+    layout, num_blocks = request.param
     config = native.NemotronHConfig(
         vocab_size=32,
         hidden_size=32,
@@ -108,6 +149,8 @@ def tiny_checkpoint(tmp_path, monkeypatch):
         moe_shared_expert_intermediate_size=32,
         use_mamba_kernels=False,
         attn_implementation="eager",
+        num_nextn_predict_layers=num_blocks // 2,
+        mtp_layers_block_type=["attention", "moe"] * (num_blocks // 2),
     )
 
     class TinyOmni(PreTrainedModel):
@@ -122,8 +165,10 @@ def tiny_checkpoint(tmp_path, monkeypatch):
         def forward(self, *args, **kwargs):
             return self.language_model(*args, **kwargs)
 
-    model = TinyOmni(config).eval()
-    model.language_model.mtp = adapter._NemotronHMTP(config)
+    cls = TinyOmni if layout == "wrapped" else native.NemotronHForCausalLM
+    model = cls(config).eval()
+    language_model = getattr(model, "language_model", model)
+    language_model.mtp = adapter._NemotronHMTP(config)
     # Fused expert parameters are allocated with empty(); a real checkpoint supplies their values.
     with torch.no_grad():
         for parameter in model.parameters():
@@ -132,7 +177,7 @@ def tiny_checkpoint(tmp_path, monkeypatch):
     config.save_pretrained(tmp_path)
     save_file(model.state_dict(), tmp_path / "model.safetensors")
     monkeypatch.setattr(adapter, "get_class_from_dynamic_module", Mock(return_value=TinyOmni))
-    return TinyOmni, model, tmp_path
+    return cls, model, tmp_path
 
 
 @pytest.mark.parametrize("model_type", ["nemotron_h", "nemotron_h_omni"])
@@ -142,15 +187,29 @@ def test_loading_places_mtp_weights_and_restores_constructor(
     """Both checkpoint model types load exact MTP weights without leaking constructor patches."""
     cls, source, checkpoint = tiny_checkpoint
     original_init = cls.__init__
+    loader = cls if hasattr(source, "language_model") else AutoModelForCausalLM
     for _ in range(2):
-        with hf.prepare_model_for_loading(model_type, checkpoint, True):
-            loaded, info = cls.from_pretrained(checkpoint, output_loading_info=True)
+        with hf.prepare_model_for_loading(
+            model_type, checkpoint, trust_remote_code=hasattr(source, "language_model")
+        ):
+            loaded, info = loader.from_pretrained(checkpoint, output_loading_info=True)
         assert cls.__init__ is original_init
         assert not info["missing_keys"] and not info["unexpected_keys"]
         assert hf.mtp_loaded_during_model_load(loaded)
         for name, value in source.state_dict().items():
             torch.testing.assert_close(loaded.state_dict()[name], value, rtol=0, atol=0)
-        assert not hasattr(cls(source.config).language_model, "mtp")
+        fresh = cls(source.config)
+        assert not hasattr(getattr(fresh, "language_model", fresh), "mtp")
+
+    with (
+        pytest.raises(RuntimeError, match="load failure"),
+        adapter.prepare_for_loading(checkpoint, True),
+    ):
+        raise RuntimeError("load failure")
+    assert cls.__init__ is original_init
+    if not hasattr(source, "language_model"):
+        adapter.get_class_from_dynamic_module.assert_not_called()
+        return
 
     class OtherOmni(cls):
         def __init__(self, config):
@@ -172,6 +231,66 @@ def test_loading_places_mtp_weights_and_restores_constructor(
     ):
         raise RuntimeError("load failure")
     assert OtherOmni.__init__ is other_init
+
+
+def test_remote_mtp_class_requires_consent(tiny_checkpoint, monkeypatch):
+    cls, source, checkpoint = tiny_checkpoint
+    config = json.loads((checkpoint / "config.json").read_text())
+    config["auto_map"] = {"AutoModelForCausalLM": "modeling_local.NemotronHWithMTP"}
+    (checkpoint / "config.json").write_text(json.dumps(config))
+    loader = Mock(return_value=cls)
+    monkeypatch.setattr(adapter, "get_class_from_dynamic_module", loader)
+    original_init = cls.__init__
+    with (
+        pytest.raises(ValueError, match="trust_remote_code=True"),
+        adapter.prepare_for_loading(checkpoint, False),
+    ):
+        pytest.fail("Remote MTP class was loaded without consent")
+    loader.assert_not_called()
+    with adapter.prepare_for_loading(checkpoint, True):
+        loaded = cls.from_pretrained(checkpoint)
+    assert cls.__init__ is original_init
+    loader.assert_called_once_with("modeling_local.NemotronHWithMTP", checkpoint)
+    for name, value in source.state_dict().items():
+        torch.testing.assert_close(loaded.state_dict()[name], value, rtol=0, atol=0)
+
+
+def test_mtp_block_count_mismatch_restores_constructor(tiny_checkpoint):
+    cls, source, checkpoint = tiny_checkpoint
+    config = copy.deepcopy(source.config)
+    config.mtp_layers_block_type = ["attention"]
+    original_init = cls.__init__
+    with (
+        pytest.raises(ValueError, match="MTP block count does not match"),
+        adapter.prepare_for_loading(checkpoint, True),
+    ):
+        cls(config)
+    assert cls.__init__ is original_init
+
+
+def test_mtp_loading_context_warns_if_constructor_is_bypassed(tiny_checkpoint):
+    cls, _, checkpoint = tiny_checkpoint
+    original_init = cls.__init__
+    with (
+        pytest.warns(UserWarning, match="MTP weights may remain unquantized"),
+        adapter.prepare_for_loading(checkpoint, True),
+    ):
+        pass
+    assert cls.__init__ is original_init
+
+
+def test_mtp_later_attention_blocks_remain_causal(tiny_checkpoint):
+    _, model, _ = tiny_checkpoint
+    mtp = getattr(model, "language_model", model).mtp.eval()
+    hidden = torch.randn(1, 4, model.config.hidden_size)
+    embeddings = torch.randn_like(hidden)
+    with torch.no_grad():
+        expected = mtp(hidden, embeddings)
+        hidden[:, -1] += 10
+        embeddings[:, -1] += 10
+        actual = mtp(hidden, embeddings)
+    # MTP uses next-token embeddings, so only the last two positions may change.
+    torch.testing.assert_close(actual[:, :-2], expected[:, :-2], rtol=0, atol=0)
 
 
 @pytest.mark.parametrize(
@@ -207,11 +326,16 @@ def test_calibration_forward_and_export(tiny_checkpoint, activation):
     cls, _, checkpoint = tiny_checkpoint
     with adapter.prepare_for_loading(checkpoint, True):
         model = cls.from_pretrained(checkpoint).eval()
-    language_model = model.language_model
-    projection_name = "language_model.mtp." + (
-        "layers.1.mixer.shared_experts.up_proj"
-        if activation == "shared_projection"
-        else "layers.0.eh_proj"
+    language_model = getattr(model, "language_model", model)
+    prefix = "language_model." if language_model is not model else ""
+    projection_name = (
+        prefix
+        + "mtp."
+        + (
+            "layers.1.mixer.shared_experts.up_proj"
+            if activation == "shared_projection"
+            else "layers.0.eh_proj"
+        )
     )
     cfg = copy.deepcopy(mtq.NVFP4_DEFAULT_CFG)
     cfg["quant_cfg"].append({"quantizer_name": "*", "enable": False})
@@ -225,7 +349,7 @@ def test_calibration_forward_and_export(tiny_checkpoint, activation):
     extra_names = []
     if activation in ("kv", "output", "cast"):
         extra_names = (
-            [f"language_model.mtp.layers.0.mixer.{kind}_bmm_quantizer" for kind in ("k", "v")]
+            [f"{prefix}mtp.layers.0.mixer.{kind}_bmm_quantizer" for kind in ("k", "v")]
             if activation != "output"
             else [f"{projection_name}.output_quantizer"]
         )
@@ -280,7 +404,7 @@ def test_lifecycle_dispatch_ignores_unsupported_models():
 @pytest.mark.parametrize("failure", ["base", "mtp"])
 def test_calibration_removes_capture_hook_on_error(tiny_checkpoint, failure):
     _, model, _ = tiny_checkpoint
-    language_model = model.language_model
+    language_model = getattr(model, "language_model", model)
     language_model.mtp.input_quantizer = TensorQuantizer(QuantizerAttributeConfig(num_bits=8))
     if failure == "mtp":
         language_model.mtp.layers[0].eh_proj = torch.nn.Linear(1, 32)
