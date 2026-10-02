@@ -19,6 +19,7 @@ import importlib
 from contextlib import nullcontext
 
 __all__ = [
+    "checkpoint_has_mtp",
     "mtp_loaded_during_model_load",
     "prepare_model_for_calibration",
     "prepare_model_for_loading",
@@ -42,6 +43,13 @@ def prepare_model_for_loading(model_type, checkpoint_path: str, trust_remote_cod
     plugin = _get_plugin(model_type)
     hook = getattr(plugin, "prepare_for_loading", None) if plugin is not None else None
     return hook(checkpoint_path, trust_remote_code) if hook is not None else nullcontext()
+
+
+def checkpoint_has_mtp(model_type, checkpoint_path: str) -> bool:
+    """Use the model plugin to detect MTP tensors before selecting a supported loading path."""
+    plugin = _get_plugin(model_type)
+    hook = getattr(plugin, "has_mtp_weights", None) if plugin is not None else None
+    return bool(hook(checkpoint_path)) if hook is not None else False
 
 
 def prepare_model_for_calibration(model) -> None:

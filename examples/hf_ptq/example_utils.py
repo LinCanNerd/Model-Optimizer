@@ -45,7 +45,7 @@ from transformers import (
 )
 
 from modelopt.torch.export.model_utils import is_multimodal_model
-from modelopt.torch.models.hf import prepare_model_for_loading
+from modelopt.torch.models.hf import checkpoint_has_mtp, prepare_model_for_loading
 from modelopt.torch.utils.plugins.hf_checkpoint_utils import (
     copy_non_safetensor_files_from_ckpt,
     copy_off_index_safetensors,
@@ -158,6 +158,8 @@ def validate_fsdp2_supported(args, config):
         issues.append("speculative decoding (--specdec_offline_dataset)")
     if getattr(args, "low_memory_mode", False):
         issues.append("--low_memory_mode (redundant with FSDP2)")
+    if not issues and checkpoint_has_mtp(config.model_type, args.pyt_ckpt_path):
+        issues.append("Nemotron-H MTP (auxiliary modules are not constructed by the FSDP2 loader)")
 
     if issues:
         raise NotImplementedError(

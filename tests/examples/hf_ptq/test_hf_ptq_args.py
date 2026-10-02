@@ -288,6 +288,48 @@ def test_fsdp2_preload_guard_distinguishes_weight_and_kv_autoquant(monkeypatch):
     assert not hf_ptq._recipe_is_kv_auto_quantize("general/auto_quantize/nvfp4_fp8_at_5p4bits")
 
 
+@pytest.mark.parametrize("has_mtp", [False, True])
+@pytest.mark.parametrize("declared", [False, True])
+def test_fsdp2_rejects_mtp_before_distributed_loading(monkeypatch, tmp_path, has_mtp, declared):
+    """MTP tensors cannot reach FSDP2's unquantized-tail passthrough, even without metadata."""
+    pytest.importorskip("transformers.models.nemotron_h.configuration_nemotron_h")
+    hf_ptq = _import_hf_ptq(monkeypatch)
+    (tmp_path / "config.json").write_text(
+        json.dumps(
+            {
+                "model_type": "nemotron_h",
+                "architectures": ["NemotronHForCausalLM"],
+                "num_nextn_predict_layers": int(declared),
+            }
+        )
+    )
+    keys = ["mtp.layers.0.eh_proj.weight", "mtp.layers.1.final_layernorm.weight"] if has_mtp else []
+    (tmp_path / "model.safetensors.index.json").write_text(
+        json.dumps({"weight_map": dict.fromkeys(keys, "model-00001.safetensors")})
+    )
+
+    def distributed_load(*args, **kwargs):
+        raise RuntimeError("distributed loader reached")
+
+    monkeypatch.setattr(hf_ptq, "parallel_load_and_prepare_fsdp2", distributed_load)
+    args = SimpleNamespace(
+        use_fsdp2=True,
+        recipe=None,
+        pyt_ckpt_path=str(tmp_path),
+        trust_remote_code=False,
+        dist_state=SimpleNamespace(device="cpu", rank=0, world_size=1),
+        cpu_offload=False,
+        attn_implementation=None,
+    )
+    error, message = (
+        (NotImplementedError, "Nemotron-H MTP")
+        if has_mtp
+        else (RuntimeError, "distributed loader reached")
+    )
+    with pytest.raises(error, match=message):
+        hf_ptq.load_model(args)
+
+
 def test_autoquant_recipe_cost_excluded_layers_map_into_cost(monkeypatch):
     """Top-level cost_excluded_layers maps to the mtq constraints.cost.excluded_module_name_patterns
     key (distinct from disabled_layers), so a cost-exclusion recipe matches the nested mtq dict."""

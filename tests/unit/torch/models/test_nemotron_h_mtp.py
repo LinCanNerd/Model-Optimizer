@@ -15,11 +15,13 @@
 
 import copy
 import json
+import shutil
 import warnings
 from unittest.mock import Mock
 
 import pytest
 import torch
+from huggingface_hub import constants as hub_constants
 from safetensors.torch import save_file
 from transformers import AutoModelForCausalLM, PreTrainedModel
 
@@ -255,6 +257,75 @@ def test_remote_mtp_class_requires_consent(tiny_checkpoint, monkeypatch):
         torch.testing.assert_close(loaded.state_dict()[name], value, rtol=0, atol=0)
 
 
+@pytest.mark.parametrize("sharded", [False, True])
+def test_hub_id_loads_exact_mtp_weights_and_calibrates(tiny_checkpoint, monkeypatch, sharded):
+    """Exercise Hub IDs through the real cache, loader, calibration, and scale export offline."""
+    cls, source, checkpoint = tiny_checkpoint
+    repo_id = "test/nemotron-h-mtp"
+    cache = checkpoint / "hub"
+    repo_cache = cache / "models--test--nemotron-h-mtp"
+    revision = "a" * 40
+    snapshot = repo_cache / "snapshots" / revision
+    snapshot.mkdir(parents=True)
+    (repo_cache / "refs").mkdir()
+    (repo_cache / "refs" / "main").write_text(revision)
+    shutil.copyfile(checkpoint / "config.json", snapshot / "config.json")
+    weight_file = "model-00001-of-00001.safetensors" if sharded else "model.safetensors"
+    shutil.copyfile(checkpoint / "model.safetensors", snapshot / weight_file)
+    if sharded:
+        (snapshot / "model.safetensors.index.json").write_text(
+            json.dumps(
+                {"metadata": {}, "weight_map": dict.fromkeys(source.state_dict(), weight_file)}
+            )
+        )
+    monkeypatch.setattr(hub_constants, "HF_HUB_CACHE", str(cache))
+    monkeypatch.setenv("HF_HUB_OFFLINE", "1")
+    monkeypatch.setattr(hub_constants, "HF_HUB_OFFLINE", True)
+    resolve = Mock(wraps=adapter.snapshot_download)
+    monkeypatch.setattr(adapter, "snapshot_download", resolve)
+    loader = cls if hasattr(source, "language_model") else AutoModelForCausalLM
+    original_init = cls.__init__
+    with hf.prepare_model_for_loading(
+        "nemotron_h", repo_id, trust_remote_code=hasattr(source, "language_model")
+    ):
+        model, info = loader.from_pretrained(
+            repo_id, local_files_only=True, output_loading_info=True
+        )
+    assert cls.__init__ is original_init
+    resolve.assert_called_once_with(
+        repo_id=repo_id,
+        allow_patterns=["config.json", "model.safetensors.index.json", "model.safetensors"],
+    )
+    assert hf.checkpoint_has_mtp("nemotron_h", repo_id)
+    assert not info["missing_keys"] and not info["unexpected_keys"]
+    assert hf.mtp_loaded_during_model_load(model)
+    for name, value in source.state_dict().items():
+        torch.testing.assert_close(model.state_dict()[name], value, rtol=0, atol=0)
+    if hasattr(source, "language_model"):
+        adapter.get_class_from_dynamic_module.assert_called_once_with(
+            "modeling_nemotron_h_omni.NemotronH_Omni_Reasoning_V3", repo_id
+        )
+    projection_name = (
+        "language_model." if hasattr(source, "language_model") else ""
+    ) + "mtp.layers.0.eh_proj"
+    cfg = copy.deepcopy(mtq.NVFP4_DEFAULT_CFG)
+    cfg["quant_cfg"].extend(
+        [
+            {"quantizer_name": "*", "enable": False},
+            {"quantizer_name": f"{projection_name}.*quantizer", "enable": True},
+        ]
+    )
+    mtq.quantize(model, {**cfg, "algorithm": None})
+    hf.prepare_model_for_calibration(model)
+    max_calibrate(model, lambda m: m(torch.tensor([[1, 2, 3, 4]]), use_cache=False))
+    projection = model.get_submodule(projection_name)
+    assert projection.input_quantizer.amax.max() > 0
+    expected_scale = get_activation_scaling_factor(projection).squeeze().clone()
+    _process_quantized_modules(model, torch.bfloat16)
+    exported = postprocess_state_dict(model.state_dict(), maxbound=448, quantization=None)
+    torch.testing.assert_close(exported[f"{projection_name}.input_scale"], expected_scale)
+
+
 def test_mtp_block_count_mismatch_restores_constructor(tiny_checkpoint):
     cls, source, checkpoint = tiny_checkpoint
     config = copy.deepcopy(source.config)
@@ -394,6 +465,7 @@ def test_calibration_forward_and_export(tiny_checkpoint, activation):
 
 def test_lifecycle_dispatch_ignores_unsupported_models():
     """Unrelated model families need neither checkpoint inspection nor auxiliary forwards."""
+    assert not hf.checkpoint_has_mtp("unsupported", "unused-checkpoint")
     with hf.prepare_model_for_loading("unsupported", "unused-checkpoint", False):
         pass
     model = torch.nn.Linear(2, 2)

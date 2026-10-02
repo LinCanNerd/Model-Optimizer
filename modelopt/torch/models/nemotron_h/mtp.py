@@ -27,6 +27,7 @@ from functools import wraps
 from pathlib import Path
 
 import torch
+from huggingface_hub import snapshot_download
 from safetensors import SafetensorError
 from transformers.dynamic_module_utils import get_class_from_dynamic_module
 from transformers.masking_utils import create_causal_mask
@@ -35,10 +36,33 @@ from modelopt.torch.quantization.model_calib import _needs_activation_forward_fo
 from modelopt.torch.utils import warn_rank_0
 from modelopt.torch.utils.plugins.hf_checkpoint_utils import indexed_weight_map
 
-__all__ = ["mtp_loaded_during_model_load", "prepare_for_calibration", "prepare_for_loading"]
+__all__ = [
+    "has_mtp_weights",
+    "mtp_loaded_during_model_load",
+    "prepare_for_calibration",
+    "prepare_for_loading",
+]
 
 _MTP_MODELS = weakref.WeakSet()
 _MTP_FORWARD_MODELS = weakref.WeakSet()
+
+
+def _resolve_checkpoint_path(checkpoint_path: str) -> Path:
+    path = Path(checkpoint_path)
+    if not path.is_dir():
+        # Inspect an index without downloading its shards; an unsharded checkpoint needs its file.
+        path = Path(
+            snapshot_download(
+                repo_id=str(checkpoint_path),
+                allow_patterns=["config.json", "model.safetensors.index.json", "model.safetensors"],
+            )
+        )
+    return path
+
+
+def has_mtp_weights(checkpoint_path: str) -> bool:
+    """Inspect local or Hub checkpoint tensors without constructing or executing model code."""
+    return _get_mtp_layout(_resolve_checkpoint_path(checkpoint_path)) is not None
 
 
 def _normalize_mtp_block_types(block_types, mixer_types):
@@ -58,7 +82,7 @@ def _normalize_mtp_block_types(block_types, mixer_types):
     return normalized
 
 
-def _get_mtp_layout(checkpoint_path: str) -> tuple[str, int] | None:
+def _get_mtp_layout(checkpoint_path: str | Path) -> tuple[str, int] | None:
     """Return the flattened MTP prefix and block count, rejecting unsupported tensor layouts."""
     try:
         weight_map = indexed_weight_map(checkpoint_path)
@@ -145,8 +169,9 @@ class _NemotronHMTP(torch.nn.Module):
 @contextmanager
 def prepare_for_loading(checkpoint_path: str, trust_remote_code: bool):
     """Scope MTP construction to a checkpoint load, before its weights are placed."""
-    layout = _get_mtp_layout(checkpoint_path)
-    config_path = Path(checkpoint_path) / "config.json"
+    local_path = _resolve_checkpoint_path(checkpoint_path)
+    layout = _get_mtp_layout(local_path)
+    config_path = local_path / "config.json"
     config = json.loads(config_path.read_text()) if config_path.exists() else {}
     if layout is None:
         configs = (config, config.get("llm_config") or {}, config.get("text_config") or {})
@@ -166,6 +191,7 @@ def prepare_for_loading(checkpoint_path: str, trust_remote_code: bool):
     if class_ref is not None:
         if not trust_remote_code:
             raise ValueError("Loading Nemotron-H MTP remote code requires trust_remote_code=True")
+        # Keep the original Hub ID so Transformers resolves the same dynamic class as the loader.
         model_class = get_class_from_dynamic_module(class_ref, checkpoint_path)
     else:
         # The native class is optional for unrelated models and remote-code checkpoints.
