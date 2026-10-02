@@ -124,7 +124,6 @@ def verify(
         "compressed_tensors",
         "fire",
         "mlflow",
-        "transformers_stream_generator",
         "zstandard",
     ):
         module = importlib.import_module(name)

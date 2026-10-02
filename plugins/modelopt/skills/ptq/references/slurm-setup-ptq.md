@@ -52,8 +52,9 @@ bash <ptq-skill>/scripts/install_environment.sh \
 <new-venv>/bin/python <Model-Optimizer-source>/examples/hf_ptq/hf_ptq.py --help
 ```
 
-This installer selects Torch SDPA and omits the example's optional `flash-attn`
-requirement; pass `--attn_implementation sdpa` to PTQ. Models requiring
+This installer selects Torch SDPA; pass `--attn_implementation sdpa` to PTQ.
+It omits optional `flash-attn` and the unused `transformers_stream_generator`
+requirement, which imports APIs removed in Transformers 5. Models requiring
 FlashAttention or other custom kernels need a separately resolved and tested
 installation. Do not use this SDPA setup for those models.
 
