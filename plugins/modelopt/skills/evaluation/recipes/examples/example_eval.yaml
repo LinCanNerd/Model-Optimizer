@@ -132,7 +132,7 @@ evaluation:
         parallelism: ???  # Number of concurrent requests per each benchmark
         request_timeout: 3600
         max_retries: 10
-        max_new_tokens: ???  # Resolve per SKILL.md's token-budget rule; match the export description/tag below
+        max_new_tokens: ???  # Resolve per SKILL.md's token-budget rule; cite the creator/evaluation source and rationale; match the export description/tag below
         temperature: 1.0       # from model card (reasoning mode); adjust per card
         top_p: 0.95            # from model card (reasoning mode); adjust per card
     target:
@@ -207,7 +207,7 @@ export:
       model: CHANGEME-served-model-name
       temperature: '1.0'
       top_p: '0.95'
-      max_new_tokens: ???
+      max_new_tokens: '???'
       # From the checkpoint's .experiment.json when present; drop when absent. Keep the
       # quotes (a bare 20260910 becomes a date) and skip any value containing ${ -- quoting
       # does not stop OmegaConf resolving it.
