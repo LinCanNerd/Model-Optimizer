@@ -13,19 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""DP=EP and MTP support for ``nemotron_h``.
-
-Two pieces, applied by monkey-patching stock transformers:
-  1. register a custom EP style ``nemotron_experts_ep`` (``NemotronHExpertsEP``) — nemotron_h's gate
-     returns logits only (routing happens inside the MoE block), so ``ep_router`` (which remaps on the
-     router output) can't be used; instead remap top-k indices to local at the EXPERTS input;
-  2. set ``base_model_ep_plan`` (experts under ``mixer.experts``, non-gated up/down_proj).
-The export reads nemotron_h's ``n_routed_experts`` (handled generically in moe_utils).
-
-Version floor: transformers >= 5.6 (the shared EP framework + ``MoeTensorParalellExperts`` /
-``all_reduce_forward`` this plugin subclasses/uses; enforced by ``moe.load_and_prepare_ep``). No higher
-floor -- nemotron_h's native fused experts are present from 5.6.
-"""
+"""MTP construction and quantization calibration hooks for Nemotron-H checkpoints."""
 
 from __future__ import annotations
 
@@ -35,16 +23,6 @@ import sys
 import weakref
 from pathlib import Path
 
-BASE_MODEL_EP_PLAN = {
-    "layers.*.mixer.experts.up_proj": "grouped_gemm",
-    "layers.*.mixer.experts.down_proj": "grouped_gemm",
-    "layers.*.mixer.experts": "nemotron_experts_ep",
-    "mtp.layers.*.mixer.experts.up_proj": "grouped_gemm",
-    "mtp.layers.*.mixer.experts.down_proj": "grouped_gemm",
-    "mtp.layers.*.mixer.experts": "nemotron_experts_ep",
-}
-
-_REGISTERED = False
 _NATIVE_MTP_PATCHED = False
 _PATCHED_OMNI_CLASSES = set()
 _MTP_MODELS = weakref.WeakSet()
@@ -263,71 +241,3 @@ def prepare_for_calibration(full_model) -> bool:
     _MTP_FORWARD_MODELS.add(language_model)
     print("Installed NemotronH MTP calibration forward", flush=True)
     return True
-
-
-def _register_style():
-    """Register NemotronHExpertsEP as the ``nemotron_experts_ep`` parallel style (idempotent).
-    Defined lazily so this module imports without transformers/torch present."""
-    global _REGISTERED
-    if _REGISTERED:
-        return
-    import torch
-    from transformers.integrations.tensor_parallel import (
-        ALL_PARALLEL_STYLES,
-        MoeTensorParalellExperts,
-        all_reduce_forward,
-    )
-
-    class NemotronHExpertsEP(MoeTensorParalellExperts):
-        """Expert parallelism for nemotron_h's block-routed MoE.
-
-        ``ep_router`` (RouterParallel) cannot be used: it remaps indices on the *router output*, but
-        nemotron_h's gate returns logits only — the group-limited top-k routing happens inside the MoE
-        block, so the gate never produces ``(scores, indices)`` for RouterParallel to remap. Instead we
-        do the EP index-remap at the EXPERTS input: tokens routed to this rank's local experts get a
-        local index (``global - ep_rank*local``); non-local tokens are sent to local index 0 with
-        weight 0, so the experts' ``index_add`` makes them a no-op. ``grouped_gemm`` on up/down_proj
-        sets ``mod.num_experts`` to the local count; the inherited ``all_reduce_forward`` sums the
-        partial expert outputs across the EP group."""
-
-        def _prepare_input_fn(self, mod, inputs, device_mesh):
-            hidden, top_k_index, top_k_weights = inputs[0], inputs[1], inputs[2]
-            local = mod.num_experts  # local count after grouped_gemm shards dim 0
-            start = device_mesh.get_local_rank() * local
-            is_local = (top_k_index >= start) & (top_k_index < start + local)
-            local_index = torch.where(is_local, top_k_index - start, torch.zeros_like(top_k_index))
-            local_weights = torch.where(is_local, top_k_weights, torch.zeros_like(top_k_weights))
-            return (hidden, local_index, local_weights)
-
-        def _prepare_output_fn(self, mod, outputs, device_mesh):
-            return all_reduce_forward(outputs, device_mesh)
-
-    ALL_PARALLEL_STYLES.register("nemotron_experts_ep", NemotronHExpertsEP())
-    _REGISTERED = True
-
-
-def apply(hf_config, **_):
-    """Register the nemotron_experts_ep style + set nemotron_h's base_model_ep_plan (if absent).
-
-    Standalone ``nemotron_h``: the plan goes on the config itself. For the Omni VLM
-    (``nemotron_h_omni``) the MoE experts live in the NESTED ``llm_config`` sub-model (a native
-    ``NemotronHForCausalLM``), so the plan must be attached THERE, not on the top VLM config.
-    transformers' ``post_init`` aggregates each sub-model's ``_ep_plan`` up to the root WITH its
-    module-name prefix, so a plan on ``llm_config`` surfaces at the VLM root as
-    ``language_model.<base>.layers.*.mixer.experts`` -- matching the real param paths, so the
-    group-injecting ``torch_a2a_experts`` ``_prepare_input_fn`` is applied to the nested experts. A
-    plan on the TOP config never reaches them (=> "torch_a2a requires the EP process_group"). Mirrors
-    ``kimi_k25`` attaching its plan to ``text_config``; ``_ep_config`` then finds it via its
-    ``text_config`` / ``llm_config`` recursion.
-    """
-    _register_style()
-    # Route the plan onto the nested nemotron_h sub-config for VLMs (Omni); else the config itself.
-    target = hf_config
-    for _attr in ("text_config", "llm_config"):
-        sub = getattr(hf_config, _attr, None)
-        if sub is not None and getattr(sub, "model_type", None) == "nemotron_h":
-            target = sub
-            break
-    if not getattr(target, "base_model_ep_plan", None):
-        target.base_model_ep_plan = dict(BASE_MODEL_EP_PLAN)
-    return hf_config
