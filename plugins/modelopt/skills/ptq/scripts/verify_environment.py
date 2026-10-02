@@ -78,6 +78,19 @@ def check_packages(allow_cusparselt_sbsa=False):
     }
 
 
+def nvfp4_quantizer():
+    """Expand preset overrides into the complete quantizer attribute schema."""
+    from modelopt.torch.quantization.config import NVFP4_DEFAULT_CFG, QuantizerAttributeConfig
+    from modelopt.torch.quantization.nn import TensorQuantizer
+
+    weight_cfg = next(
+        entry["cfg"]
+        for entry in NVFP4_DEFAULT_CFG["quant_cfg"]
+        if entry["quantizer_name"] == "*weight_quantizer"
+    )
+    return TensorQuantizer(QuantizerAttributeConfig(**weight_cfg))
+
+
 def verify(
     source, ref, require_cuda=False, model_class="AutoModelForCausalLM", allow_cusparselt_sbsa=False
 ):
@@ -159,15 +172,10 @@ def verify(
         path = candidates[0].resolve()
         ctypes.CDLL(str(path))
         libraries[filename] = str(path)
-    from modelopt.torch.quantization.config import NVFP4_DEFAULT_CFG
-    from modelopt.torch.quantization.nn import TensorQuantizer
-
-    weight_cfg = next(
-        entry["cfg"]
-        for entry in NVFP4_DEFAULT_CFG["quant_cfg"]
-        if entry["quantizer_name"] == "*weight_quantizer"
-    )
-    quantizer = TensorQuantizer(weight_cfg)
+    quantizer = nvfp4_quantizer()
+    # Check a defaulted attribute on CPU so incomplete preset dictionaries fail before CUDA.
+    if not isinstance(quantizer.rotate_back_is_enabled, bool):
+        raise RuntimeError("Invalid quantizer rotation defaults")
     gpu = None
     if require_cuda:
         if not torch.cuda.is_available():
