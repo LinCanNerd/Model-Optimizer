@@ -18,15 +18,8 @@ Use WebSearch to find the model card (HuggingFace, build.nvidia.com). Read it ca
 - Context length (`deployment.extra_args: "--max-model-len <value>"`)
 - **Output length (`max_new_tokens`) — mandatory extraction.** Record the
   creator-disclosed maximum output length and any budget used for the applicable
-  evaluation, with sources. Non-reasoning defaults to **16384**, lowered for
-  smaller context/output caps; reasoning uses the creator-disclosed output
-  maximum. If neither an output maximum nor an applicable evaluation budget is
-  disclosed, use `max_new_tokens: null` for reasoning, after verifying harness
-  support and effective server/harness limits. An explicit model-card budget for
-  the applicable evaluation can override these defaults. No highest-number or
-  same-family fallback. Keep one top-level value; conflicting benchmark budgets require
-  separate configs. See SKILL.md Step 3
-  "`max_new_tokens` — mandatory model-card lookup" for the full rule.
+  evaluation, with sources; apply SKILL.md Step 3
+  "`max_new_tokens` — mandatory model-card lookup".
 - TP/DP settings (to set them appropriately, AskUserQuestion on how many GPUs the model will be deployed)
 - Reasoning config (if applicable):
   - reasoning on/off: use either:
