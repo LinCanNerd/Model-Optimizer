@@ -1482,7 +1482,7 @@ class TestAnchorSamplingStaticShape:
 
 
 class TestTeacherLogits:
-    """The base distribution is projected only at the rows, and vocab entries, asked for."""
+    """The base distribution is projected only at the rows asked for."""
 
     @staticmethod
     def _model():
@@ -1520,27 +1520,12 @@ class TestTeacherLogits:
         want = self._rows(model._base_model_lm_head(model._base_model_norm(hidden)), positions)
         torch.testing.assert_close(model._teacher_logits(outputs, positions), want)
 
-    def test_token_ids_pick_entries_of_the_full_rows(self):
-        model = self._model()
-        outputs = DFlashBaseModelOutput(None, base_hidden=self._hidden(model))
-        positions = self._positions()
-        token_ids = torch.randint(0, model.config.vocab_size, (*positions.shape, 5))
-        rows = model._teacher_logits(outputs, positions)
-        torch.testing.assert_close(
-            model._teacher_logits(outputs, positions, token_ids), rows.gather(-1, token_ids)
-        )
-
     def test_handed_over_logits_are_gathered_not_recomputed(self):
         model = self._model()
         logits = torch.randn(2, SEQ_LEN, model.config.vocab_size)
-        outputs = DFlashBaseModelOutput(None, logits=logits)
         positions = self._positions()
-        token_ids = torch.randint(0, model.config.vocab_size, (*positions.shape, 5))
-        want = self._rows(logits, positions)
-        assert torch.equal(model._teacher_logits(outputs, positions), want)
-        assert torch.equal(
-            model._teacher_logits(outputs, positions, token_ids), want.gather(-1, token_ids)
-        )
+        got = model._teacher_logits(DFlashBaseModelOutput(None, logits=logits), positions)
+        assert torch.equal(got, self._rows(logits, positions))
 
     def test_missing_base_distribution_raises(self):
         model = self._model()
@@ -1570,16 +1555,30 @@ class TestTeacherLogits:
         )
         torch.testing.assert_close(loss, loss_full)
 
-    def test_training_step_never_projects_the_full_sequence(self):
-        """Online with KD on, lm_head only ever sees draft rows and teacher rows."""
-        model = self._model()
+    def test_offline_step_never_projects_the_full_sequence(self):
+        """Offline/streaming with KD on, lm_head only ever sees draft rows and teacher rows."""
+        model = get_tiny_llama(num_hidden_layers=4)
+        model.config.num_orig_hidden_layers = 4
+        mtsp.convert(model, [("dflash", get_dflash_config(offline=True))])
         assert model.dflash_self_logit_distillation
         model.train()
         seen = []
         model._base_model_lm_head.register_forward_hook(
             lambda _module, args, _out: seen.append(tuple(args[0].shape))
         )
-        input_ids = torch.randint(1, model.config.vocab_size, (2, SEQ_LEN))
-        model(input_ids=input_ids, attention_mask=torch.ones_like(input_ids)).loss.backward()
+        bsz, hidden = 2, model.config.hidden_size
+        dtype = next(model.dflash_module.parameters()).dtype
+        base_model_outputs = {
+            "aux_hidden_states": torch.randn(
+                bsz, SEQ_LEN, len(model.target_layer_ids) * hidden, dtype=dtype
+            ),
+            "base_model_hidden_states": torch.randn(bsz, SEQ_LEN, hidden, dtype=dtype),
+        }
+        input_ids = torch.randint(1, model.config.vocab_size, (bsz, SEQ_LEN))
+        model(
+            input_ids=input_ids,
+            attention_mask=torch.ones_like(input_ids),
+            base_model_outputs=base_model_outputs,
+        ).loss.backward()
         assert len(seen) == 2, seen  # the draft's logits, then the KD teacher rows
-        assert (2, SEQ_LEN, model.config.hidden_size) not in seen, seen
+        assert (bsz, SEQ_LEN, hidden) not in seen, seen
