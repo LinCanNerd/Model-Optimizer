@@ -45,9 +45,10 @@ printf 'torch==%s\ntransformers==%s\ntorchvision==%s\n' \
 # DeepSpeed builds no optional operators; its declared dependencies still resolve.
 DS_BUILD_OPS=0 "$python" -m pip install --no-compile --no-build-isolation -c "$constraint" \
     "$source_dir[hf]" "transformers==$transformers_version"
-# SDPA uses released Torch kernels; FlashAttention is an optional alternative.
+# SDPA needs no FlashAttention. The example never imports the legacy streaming
+# package, whose removed Transformers APIs are incompatible with Transformers 5.
 requirements="$venv_dir/ptq-example-requirements.txt"
-sed '/^flash-attn/d' "$source_dir/examples/hf_ptq/requirements.txt" >"$requirements"
+sed -e '/^flash-attn/d' -e '/^transformers_stream_generator$/d' "$source_dir/examples/hf_ptq/requirements.txt" >"$requirements"
 "$python" -m pip install --no-compile -c "$constraint" -r "$requirements"
 "$python" "$script_dir/verify_environment.py" --check-packages-only "${check_flags[@]}" >"$venv_dir/ptq-package-check.json"
 "$python" -m pip freeze --all >"$venv_dir/ptq-packages.txt"
