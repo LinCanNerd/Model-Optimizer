@@ -28,10 +28,23 @@ import pytest
 import torch
 from _test_utils.examples.hf_ptq_example_utils import example_utils
 from safetensors.torch import save_file
+from transformers import LlamaConfig
 
 
 def _write_safetensors(path, tensors):
     save_file(tensors, str(path), metadata={"format": "pt"})
+
+
+def test_get_model_preserves_preparation_error(monkeypatch, tmp_path):
+    config = LlamaConfig(architectures=["LlamaForCausalLM"])
+    monkeypatch.setattr(example_utils.AutoConfig, "from_pretrained", lambda *a, **k: config)
+
+    def prepare(*args):
+        raise ValueError("MTP preparation failed")
+
+    monkeypatch.setattr(example_utils, "prepare_model_for_loading", prepare)
+    with pytest.raises(ValueError, match="MTP preparation failed"):
+        example_utils.get_model(str(tmp_path), device="cpu")
 
 
 def test_copy_custom_model_files_preserves_non_weight_sidecars(tmp_path):

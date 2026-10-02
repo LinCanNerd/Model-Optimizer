@@ -293,7 +293,9 @@ def _needs_activation_forward_for_max_calib(model: nn.Module) -> bool:
             continue
         # Weight quantizers (incl. SequentialQuantizer stages named ``weight_quantizer.<i>``)
         # are calibrated on the weight tensor directly, not via the data forward.
-        if any(part.endswith("weight_quantizer") for part in name.split(".")):
+        if any(
+            part.endswith(("weight_quantizer", "weight_quantizers")) for part in name.split(".")
+        ):
             continue
 
         is_constant = (

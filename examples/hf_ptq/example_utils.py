@@ -33,6 +33,7 @@ import torch
 import transformers
 from accelerate import infer_auto_device_map, init_empty_weights
 from accelerate.utils import get_max_memory
+from models import prepare_model_for_loading
 from safetensors import safe_open
 from transformers import (
     AutoConfig,
@@ -668,12 +669,6 @@ def get_model(
     try:
         hf_config = AutoConfig.from_pretrained(ckpt_path, **config_kwargs)
 
-        # Model-specific adapters may need to construct checkpoint-only modules
-        # before ``from_pretrained`` loads their weights.
-        from models import prepare_model_for_loading
-
-        prepare_model_for_loading(hf_config.model_type, ckpt_path, trust_remote_code)
-
         if is_nemotron_vl(hf_config):
             print(
                 "Detected Nemotron VL model from config. "
@@ -750,16 +745,20 @@ def get_model(
         )
 
     if is_speculative(hf_config):
-        model = _from_pretrained_recording(
-            AutoModelForCausalLM,
-            ckpt_path,
-            device_map=device_map,
-            **model_kwargs,
-        )
+        with prepare_model_for_loading(hf_config.model_type, ckpt_path, trust_remote_code):
+            model = _from_pretrained_recording(
+                AutoModelForCausalLM,
+                ckpt_path,
+                device_map=device_map,
+                **model_kwargs,
+            )
     elif has_pack_quantized_config(hf_config):
         from modelopt.torch.quantization.plugins.huggingface import patch_compressed_linear_loading
 
-        with patch_compressed_linear_loading():
+        with (
+            prepare_model_for_loading(hf_config.model_type, ckpt_path, trust_remote_code),
+            patch_compressed_linear_loading(),
+        ):
             model = _from_pretrained_recording(
                 AutoModelForCausalLM,
                 ckpt_path,
@@ -785,12 +784,13 @@ def get_model(
         # materialization. Sequential keeps each shard's dequant on a single device
         # (the whole model lands on one GPU when it fits there).
         model_kwargs["quantization_config"] = Mxfp4Config(dequantize=True)
-        model = _from_pretrained_recording(
-            AutoModelForCausalLM,
-            ckpt_path,
-            device_map="cpu" if device == "cpu" else "sequential",
-            **model_kwargs,
-        )
+        with prepare_model_for_loading(hf_config.model_type, ckpt_path, trust_remote_code):
+            model = _from_pretrained_recording(
+                AutoModelForCausalLM,
+                ckpt_path,
+                device_map="cpu" if device == "cpu" else "sequential",
+                **model_kwargs,
+            )
     else:
         if not hf_config.architectures:
             raise ValueError(f"Model config at {ckpt_path} has no architectures defined")
@@ -824,7 +824,10 @@ def get_model(
             hf_config, auto_model_module, ckpt_path, config_kwargs
         )
 
-        with init_empty_weights(include_buffers=True):
+        with (
+            prepare_model_for_loading(hf_config.model_type, ckpt_path, trust_remote_code),
+            init_empty_weights(include_buffers=True),
+        ):
             # When computing the device_map, assuming bfloat16 precision by default,
             # unless specified by the hf_config.
             config_dtype = _get_config_dtype(config_for_init)
@@ -872,12 +875,13 @@ def get_model(
         model_kwargs2 = _apply_dtype_to_config(model_kwargs, config_dtype, architecture)
         if _disk_offload:
             model_kwargs2["offload_folder"] = offload_folder
-        model = _from_pretrained_recording(
-            auto_model_module,
-            ckpt_path,
-            device_map=device_map,
-            **model_kwargs2,
-        )
+        with prepare_model_for_loading(hf_config.model_type, ckpt_path, trust_remote_code):
+            model = _from_pretrained_recording(
+                auto_model_module,
+                ckpt_path,
+                device_map=device_map,
+                **model_kwargs2,
+            )
     model.eval()
     if has_pack_quantized_config(hf_config):
         _unpack_compressed_linear_weights(model, ckpt_path)

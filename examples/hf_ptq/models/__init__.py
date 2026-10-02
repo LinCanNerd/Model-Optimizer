@@ -16,6 +16,13 @@
 """Model-specific lifecycle hooks for the Hugging Face PTQ example."""
 
 import importlib
+from contextlib import nullcontext
+
+__all__ = [
+    "mtp_loaded_during_model_load",
+    "prepare_model_for_calibration",
+    "prepare_model_for_loading",
+]
 
 # model_type -> module name under this package
 _PLUGINS = {
@@ -30,12 +37,11 @@ def _get_plugin(model_type):
     return None if name is None else importlib.import_module(f".{name}", __package__)
 
 
-def prepare_model_for_loading(model_type, checkpoint_path: str, trust_remote_code: bool) -> None:
-    """Run the optional model-specific pre-``from_pretrained`` lifecycle hook."""
+def prepare_model_for_loading(model_type, checkpoint_path: str, trust_remote_code: bool):
+    """Return a context that prepares checkpoint-only modules during model construction."""
     plugin = _get_plugin(model_type)
     hook = getattr(plugin, "prepare_for_loading", None) if plugin is not None else None
-    if hook is not None:
-        hook(checkpoint_path, trust_remote_code)
+    return hook(checkpoint_path, trust_remote_code) if hook is not None else nullcontext()
 
 
 def prepare_model_for_calibration(model) -> None:

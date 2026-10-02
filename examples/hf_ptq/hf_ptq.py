@@ -52,6 +52,7 @@ from example_utils import (
     setup_distributed_args,
     validate_fsdp2_supported,
 )
+from models import prepare_model_for_calibration, prepare_model_for_loading
 from torch.utils.data import DataLoader
 from transformers import (
     AutoConfig,
@@ -646,27 +647,22 @@ def load_model(args: argparse.Namespace):
         with init_quantized_weights(
             quant_cfg, gpu_mem_percentage=args.gpu_max_mem_percentage, quant_gemm=False
         ):
-            from models import prepare_model_for_loading
-
             hf_config = AutoConfig.from_pretrained(
                 args.pyt_ckpt_path, trust_remote_code=args.trust_remote_code
-            )
-            prepare_model_for_loading(
-                hf_config.model_type, args.pyt_ckpt_path, args.trust_remote_code
             )
             model_kwargs = {"trust_remote_code": args.trust_remote_code}
             if args.attn_implementation is not None:
                 model_kwargs["attn_implementation"] = args.attn_implementation
-            full_model = AutoModelForCausalLM.from_pretrained(
-                args.pyt_ckpt_path,
-                **model_kwargs,
-            )
+            with prepare_model_for_loading(
+                hf_config.model_type, args.pyt_ckpt_path, args.trust_remote_code
+            ):
+                full_model = AutoModelForCausalLM.from_pretrained(
+                    args.pyt_ckpt_path,
+                    **model_kwargs,
+                )
         calibration_only = True
 
-    # Model plugins may augment the ordinary language-model forward with modules whose enabled input
-    # quantizers require calibration activations.
-    from models import prepare_model_for_calibration
-
+    # Include auxiliary modules whose activation quantizers require calibration data.
     prepare_model_for_calibration(full_model)
 
     model_type = get_model_type(full_model)
