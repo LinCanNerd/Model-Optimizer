@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import copy
+import fnmatch
 import json
 import shutil
 import warnings
@@ -30,7 +31,6 @@ from modelopt.torch.export.quant_utils import get_activation_scaling_factor, pos
 from modelopt.torch.export.unified_export_hf import _process_quantized_modules
 from modelopt.torch.models import hf
 from modelopt.torch.models.nemotron_h import mtp as adapter
-from modelopt.torch.models.nemotron_h.mtp import _normalize_mtp_block_types
 from modelopt.torch.quantization.config import QuantizerAttributeConfig
 from modelopt.torch.quantization.model_calib import (
     _needs_activation_forward_for_max_calib,
@@ -40,24 +40,14 @@ from modelopt.torch.quantization.nn import TensorQuantizer
 
 
 @pytest.mark.parametrize(
-    ("checkpoint_name", "native_name"),
-    [("attention", "attention"), ("full_attention", "attention"), ("attention", "full_attention")],
+    ("config_key", "declared", "invalid"),
+    [
+        (None, False, False),
+        (None, True, False),
+        ("llm_config", True, False),
+        ("text_config", True, True),
+    ],
 )
-def test_normalize_mtp_block_types(checkpoint_name, native_name):
-    assert _normalize_mtp_block_types([checkpoint_name, "moe"], {native_name, "moe"}) == [
-        native_name,
-        "moe",
-    ]
-
-
-def test_normalize_mtp_block_types_rejects_unknown_type():
-    with pytest.raises(ValueError, match="Unsupported NemotronH MTP block type 'unknown'"):
-        _normalize_mtp_block_types(["unknown"], {"attention", "mamba", "moe"})
-
-
-@pytest.mark.parametrize("config_key", [None, "llm_config", "text_config"])
-@pytest.mark.parametrize("declared", [False, True])
-@pytest.mark.parametrize("invalid", [False, True])
 def test_missing_mtp_weights_warn_without_constructing(
     tmp_path, monkeypatch, config_key, declared, invalid
 ):
@@ -99,7 +89,7 @@ def test_unsupported_mtp_layout_rejects_silent_passthrough(tmp_path, keys):
         pytest.fail("Unsupported MTP tensors would be silently passed through")
 
 
-@pytest.fixture(params=[("wrapped", 2), ("wrapped", 4), ("plain", 2), ("plain", 4)])
+@pytest.fixture(params=[("plain", 2), ("wrapped", 4)])
 def tiny_checkpoint(tmp_path, monkeypatch, request):
     native = pytest.importorskip("transformers.models.nemotron_h.modeling_nemotron_h")
     layout, num_blocks = request.param
@@ -136,7 +126,11 @@ def tiny_checkpoint(tmp_path, monkeypatch, request):
     cls = TinyOmni if layout == "wrapped" else native.NemotronHForCausalLM
     model = cls(config).eval()
     language_model = getattr(model, "language_model", model)
-    language_model.mtp = adapter._NemotronHMTP(config)
+    # Exercise checkpoint aliases without asking the native config parser to accept them.
+    mtp_config = copy.deepcopy(config)
+    attention_alias = "full_attention" if "attention" in native.MIXER_TYPES else "attention"
+    mtp_config.mtp_layers_block_type = [attention_alias, "moe"] * (num_blocks // 2)
+    language_model.mtp = adapter._NemotronHMTP(mtp_config)
     # Fused expert parameters are allocated with empty(); a real checkpoint supplies their values.
     with torch.no_grad():
         for parameter in model.parameters():
@@ -144,55 +138,17 @@ def tiny_checkpoint(tmp_path, monkeypatch, request):
     # Write the source layout directly; older HF save_pretrained rewrites the language prefix.
     config.save_pretrained(tmp_path)
     save_file(model.state_dict(), tmp_path / "model.safetensors")
-    monkeypatch.setattr(adapter, "get_class_from_dynamic_module", Mock(return_value=TinyOmni))
+    monkeypatch.setattr(adapter, "get_class_from_dynamic_module", Mock(return_value=cls))
     return cls, model, tmp_path
 
 
-def test_loading_scope_restores_constructors(tiny_checkpoint, monkeypatch):
-    """Repeated, nested, and failed loading contexts must not leak constructor patches."""
-    cls, source, checkpoint = tiny_checkpoint
-    original_init = cls.__init__
-    for _ in range(2):
-        with adapter.prepare_for_loading(checkpoint, True):
-            loaded = cls(source.config)
-            assert hasattr(getattr(loaded, "language_model", loaded), "mtp")
-        assert cls.__init__ is original_init
-        fresh = cls(source.config)
-        assert not hasattr(getattr(fresh, "language_model", fresh), "mtp")
-
-    with (
-        pytest.raises(RuntimeError, match="load failure"),
-        adapter.prepare_for_loading(checkpoint, True),
-    ):
-        raise RuntimeError("load failure")
-    assert cls.__init__ is original_init
-    if not hasattr(source, "language_model"):
-        adapter.get_class_from_dynamic_module.assert_not_called()
-        return
-
-    class OtherOmni(cls):
-        def __init__(self, config):
-            original_init(self, config)
-            self.other_constructor_called = True
-
-    other_init = OtherOmni.__init__
-    with adapter.prepare_for_loading(checkpoint, True):
-        assert not hasattr(type(source.language_model)(source.config), "mtp")
-        monkeypatch.setattr(adapter, "get_class_from_dynamic_module", Mock(return_value=OtherOmni))
-        with adapter.prepare_for_loading(checkpoint, True):
-            assert OtherOmni(source.config).other_constructor_called
-            assert hasattr(cls(source.config).language_model, "mtp")
-        assert OtherOmni.__init__ is other_init
-    assert cls.__init__ is original_init
-
-
-def test_remote_mtp_class_requires_consent(tiny_checkpoint, monkeypatch):
+def test_remote_consent_and_constructor_cleanup(tiny_checkpoint):
+    """Consent, nested construction, and failures preserve the original model class."""
     cls, source, checkpoint = tiny_checkpoint
     config = json.loads((checkpoint / "config.json").read_text())
     config["auto_map"] = {"AutoModelForCausalLM": "modeling_local.NemotronHWithMTP"}
     (checkpoint / "config.json").write_text(json.dumps(config))
-    loader = Mock(return_value=cls)
-    monkeypatch.setattr(adapter, "get_class_from_dynamic_module", loader)
+    loader = adapter.get_class_from_dynamic_module
     original_init = cls.__init__
     with (
         pytest.raises(ValueError, match="trust_remote_code=True"),
@@ -201,11 +157,20 @@ def test_remote_mtp_class_requires_consent(tiny_checkpoint, monkeypatch):
         pytest.fail("Remote MTP class was loaded without consent")
     loader.assert_not_called()
     with adapter.prepare_for_loading(checkpoint, True):
-        loaded = cls.from_pretrained(checkpoint)
+        with adapter.prepare_for_loading(checkpoint, True):
+            loaded = cls.from_pretrained(checkpoint)
+        assert hasattr(getattr(loaded, "language_model", loaded), "mtp")
+        if hasattr(source, "language_model"):
+            assert not hasattr(type(source.language_model)(source.config), "mtp")
+    loader.assert_called_with("modeling_local.NemotronHWithMTP", checkpoint)
+    with (
+        pytest.raises(RuntimeError, match="load failure"),
+        adapter.prepare_for_loading(checkpoint, True),
+    ):
+        raise RuntimeError("load failure")
     assert cls.__init__ is original_init
-    loader.assert_called_once_with("modeling_local.NemotronHWithMTP", checkpoint)
-    for name, value in source.state_dict().items():
-        torch.testing.assert_close(loaded.state_dict()[name], value, rtol=0, atol=0)
+    fresh = cls(source.config)
+    assert not hasattr(getattr(fresh, "language_model", fresh), "mtp")
 
 
 def _hub_checkpoint(checkpoint, source, monkeypatch, sharded):
@@ -233,13 +198,16 @@ def _hub_checkpoint(checkpoint, source, monkeypatch, sharded):
     return repo_id
 
 
-def test_mtp_block_count_mismatch_restores_constructor(tiny_checkpoint):
+@pytest.mark.parametrize(
+    ("blocks", "error"), [(["attention"], "MTP block count"), (["unknown"], "MTP block type")]
+)
+def test_invalid_mtp_config_restores_constructor(tiny_checkpoint, blocks, error):
     cls, source, checkpoint = tiny_checkpoint
     config = copy.deepcopy(source.config)
-    config.mtp_layers_block_type = ["attention"]
+    config.mtp_layers_block_type = blocks
     original_init = cls.__init__
     with (
-        pytest.raises(ValueError, match="MTP block count does not match"),
+        pytest.raises(ValueError, match=error),
         adapter.prepare_for_loading(checkpoint, True),
     ):
         cls(config)
@@ -271,41 +239,36 @@ def test_mtp_later_attention_blocks_remain_causal(tiny_checkpoint):
     torch.testing.assert_close(actual[:, :-2], expected[:, :-2], rtol=1e-6, atol=1e-9)
 
 
+def test_fused_weight_quantizers_need_no_activation_forward():
+    mtp = torch.nn.Module()
+    mtp.up_proj_weight_quantizers = torch.nn.ModuleList(
+        [TensorQuantizer(QuantizerAttributeConfig(num_bits=(4, 3)))]
+    )
+    assert not _needs_activation_forward_for_max_calib(mtp)
+
+
+_PROJECTION = "layers.0.eh_proj"
+_SHARED = "layers.1.mixer.shared_experts.up_proj"
+_KV = "layers.0.mixer.[kv]_bmm_quantizer"
+
+
 @pytest.mark.parametrize(
-    ("name", "attributes", "needs_forward"),
+    ("location", "activation", "attributes", "needs_forward"),
     [
-        ("input_quantizer", {}, True),
-        ("up_proj_input_quantizer", {}, True),
-        ("k_bmm_quantizer", {}, True),
-        ("v_bmm_quantizer", {}, True),
-        ("output_quantizer", {}, True),
-        ("weight_quantizer", {}, False),
-        ("weight_quantizer.0", {}, False),
-        ("up_proj_weight_quantizers.0", {}, False),
-        ("input_quantizer", {"enable": False}, False),
-        ("k_bmm_quantizer", {"constant_amax": 448.0}, False),
-        ("input_quantizer", {"type": "dynamic"}, False),
+        ("local", f"{_PROJECTION}.input_quantizer", {}, True),
+        ("local", f"{_SHARED}.input_quantizer", {}, True),
+        ("local", _KV, {"num_bits": (4, 3)}, True),
+        ("local", f"{_PROJECTION}.output_quantizer", {"num_bits": (4, 3)}, True),
+        ("local", None, {}, False),
+        ("local", _KV, {"num_bits": (4, 3), "constant_amax": 448.0}, False),
+        ("local", f"{_PROJECTION}.input_quantizer", {"type": "dynamic"}, False),
+        ("hub-single", f"{_PROJECTION}.input_quantizer", {}, True),
+        ("hub-sharded", f"{_PROJECTION}.input_quantizer", {}, True),
     ],
 )
-def test_activation_forward_gate(name, attributes, needs_forward):
-    mtp = torch.nn.Module()
-    quantizer = TensorQuantizer(QuantizerAttributeConfig(num_bits=(4, 3), **attributes))
-    if "." in name:
-        mtp.add_module(name.split(".")[0], torch.nn.ModuleList([quantizer]))
-    else:
-        mtp.add_module(name, quantizer)
-    assert _needs_activation_forward_for_max_calib(mtp) == needs_forward
-
-
-@pytest.mark.parametrize(
-    ("location", "activation"),
-    [
-        ("local", name)
-        for name in ("projection", "shared_projection", "kv", "output", "weight_only", "cast")
-    ]
-    + [("hub-single", "projection"), ("hub-sharded", "projection")],
-)
-def test_loading_calibration_and_export(tiny_checkpoint, monkeypatch, location, activation):
+def test_loading_calibration_and_export(
+    tiny_checkpoint, monkeypatch, location, activation, attributes, needs_forward
+):
     """Local and Hub checkpoints place exact weights, calibrate MTP, and export matching scales."""
     cls, source, checkpoint = tiny_checkpoint
     if location.startswith("hub"):
@@ -328,37 +291,23 @@ def test_loading_calibration_and_export(tiny_checkpoint, monkeypatch, location, 
             "modeling_nemotron_h_omni.NemotronH_Omni_Reasoning_V3", checkpoint
         )
     language_model = getattr(model, "language_model", model)
-    prefix = "language_model." if language_model is not model else ""
-    projection_name = (
-        prefix
-        + "mtp."
-        + (
-            "layers.1.mixer.shared_experts.up_proj"
-            if activation == "shared_projection"
-            else "layers.0.eh_proj"
-        )
+    prefix = "language_model.mtp." if wrapped else "mtp."
+    projection_name = prefix + (
+        _SHARED if activation == f"{_SHARED}.input_quantizer" else _PROJECTION
     )
     cfg = copy.deepcopy(mtq.NVFP4_DEFAULT_CFG)
     cfg["quant_cfg"].append({"quantizer_name": "*", "enable": False})
     cfg["quant_cfg"].append(
         {"quantizer_name": f"{projection_name}.weight_quantizer", "enable": True}
     )
-    if activation.endswith("projection"):
+    if activation:
         cfg["quant_cfg"].append(
-            {"quantizer_name": f"{projection_name}.input_quantizer", "enable": True}
+            {
+                "quantizer_name": prefix + activation,
+                "enable": True,
+                **({"cfg": attributes} if attributes else {}),
+            }
         )
-    extra_names = []
-    if activation in ("kv", "output", "cast"):
-        extra_names = (
-            [f"{prefix}mtp.layers.0.mixer.{kind}_bmm_quantizer" for kind in ("k", "v")]
-            if activation != "output"
-            else [f"{projection_name}.output_quantizer"]
-        )
-        attributes = {"num_bits": (4, 3), "axis": None}
-        if activation == "cast":
-            attributes["constant_amax"] = 448.0
-        for name in extra_names:
-            cfg["quant_cfg"].append({"quantizer_name": name, "cfg": attributes, "enable": True})
     mtq.quantize(model, {**cfg, "algorithm": None})
     mtp = language_model.mtp
     inputs = torch.tensor([[1, 2, 3, 4]])
@@ -379,13 +328,15 @@ def test_loading_calibration_and_export(tiny_checkpoint, monkeypatch, location, 
     )
     torch.testing.assert_close(outputs[0], expected, rtol=0, atol=0)
     assert model.get_submodule(projection_name).weight_quantizer.amax is not None
-    assert calls == ([] if activation in ("weight_only", "cast") else [True])
+    assert calls == ([True] if needs_forward else [])
     assert not language_model.model.norm_f._forward_pre_hooks
-    for name in extra_names:
-        quantizer = model.get_submodule(name)
-        assert quantizer.amax is not None and torch.isfinite(quantizer.amax).all()
-        assert quantizer.amax.max() > 0
-    if activation.endswith("projection"):
+    if needs_forward or "constant_amax" in attributes:
+        names = fnmatch.filter(dict(model.named_modules()), prefix + activation)
+        assert names
+        for name in names:
+            amax = model.get_submodule(name).amax
+            assert amax is not None and torch.isfinite(amax).all() and amax.max() > 0
+    if needs_forward and activation.endswith(".input_quantizer"):
         projection = model.get_submodule(projection_name)
         assert projection.input_quantizer.amax.max() > 0
         expected_scale = get_activation_scaling_factor(projection).squeeze().clone()

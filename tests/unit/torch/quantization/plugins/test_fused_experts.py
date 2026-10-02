@@ -839,21 +839,11 @@ class TestForceEagerExpertsImpl:
         vision_cfg = _StubConfig(impl="bmm")
         root_cfg = _StubConfig(text_config=text_cfg, vision_config=vision_cfg)
         model = _TinyMoEModelWithConfig(root_cfg)
+        model.moe.experts.config = _StubConfig(impl="grouped_mm")
         force_eager_experts_impl_on_the_fly(model)
         assert text_cfg._experts_implementation == "eager"
         assert vision_cfg._experts_implementation == "eager"
-
-    def test_sets_eager_on_fused_experts_private_config(self):
-        """Auxiliary experts can own a deep-copied config distinct from the model config."""
-        root_cfg = _StubConfig(impl="grouped_mm")
-        experts_cfg = _StubConfig(impl="grouped_mm")
-        model = _TinyMoEModelWithConfig(root_cfg)
-        model.moe.experts.config = experts_cfg
-
-        force_eager_experts_impl_on_the_fly(model)
-
-        assert root_cfg._experts_implementation == "eager"
-        assert experts_cfg._experts_implementation == "eager"
+        assert model.moe.experts.config._experts_implementation == "eager"
 
     def test_skips_model_without_fused_experts(self):
         """Non-MoE models must not have their config silently mutated."""

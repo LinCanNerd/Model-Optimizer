@@ -292,17 +292,14 @@ def test_fsdp2_preload_guard_distinguishes_weight_and_kv_autoquant(monkeypatch):
 @pytest.mark.parametrize("declared", [False, True])
 def test_fsdp2_rejects_mtp_before_distributed_loading(monkeypatch, tmp_path, has_mtp, declared):
     """MTP tensors cannot reach FSDP2's unquantized-tail passthrough, even without metadata."""
-    pytest.importorskip("transformers.models.nemotron_h.configuration_nemotron_h")
-    hf_ptq = _import_hf_ptq(monkeypatch)
-    (tmp_path / "config.json").write_text(
-        json.dumps(
-            {
-                "model_type": "nemotron_h",
-                "architectures": ["NemotronHForCausalLM"],
-                "num_nextn_predict_layers": int(declared),
-            }
-        )
-    )
+    native = pytest.importorskip("transformers.models.nemotron_h.configuration_nemotron_h")
+    native.NemotronHConfig(
+        architectures=["NemotronHForCausalLM"],
+        num_nextn_predict_layers=int(declared),
+    ).save_pretrained(tmp_path)
+    monkeypatch.setenv("RANK", "0")
+    hf_ptq, args = _parse_hf_ptq_args(monkeypatch, "--pyt_ckpt_path", str(tmp_path), "--use_fsdp2")
+    args.dist_state = SimpleNamespace(device="cpu", rank=0, world_size=1)
     keys = ["mtp.layers.0.eh_proj.weight", "mtp.layers.1.final_layernorm.weight"] if has_mtp else []
     (tmp_path / "model.safetensors.index.json").write_text(
         json.dumps({"weight_map": dict.fromkeys(keys, "model-00001.safetensors")})
@@ -312,15 +309,6 @@ def test_fsdp2_rejects_mtp_before_distributed_loading(monkeypatch, tmp_path, has
         raise RuntimeError("distributed loader reached")
 
     monkeypatch.setattr(hf_ptq, "parallel_load_and_prepare_fsdp2", distributed_load)
-    args = SimpleNamespace(
-        use_fsdp2=True,
-        recipe=None,
-        pyt_ckpt_path=str(tmp_path),
-        trust_remote_code=False,
-        dist_state=SimpleNamespace(device="cpu", rank=0, world_size=1),
-        cpu_offload=False,
-        attn_implementation=None,
-    )
     error, message = (
         (NotImplementedError, "Nemotron-H MTP")
         if has_mtp
