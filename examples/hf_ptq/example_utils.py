@@ -617,7 +617,7 @@ def _resolved_local_dir(ckpt_path: str) -> str:
         return str(ckpt_path)
 
 
-def _from_pretrained_recording(auto_class, ckpt_path, **kwargs):
+def _from_pretrained_recording(auto_class, ckpt_path, *, model_type=None, **kwargs):
     """``from_pretrained`` that records what the loader could not place.
 
     ``output_loading_info=True`` makes Transformers return its own accounting of the load;
@@ -627,7 +627,10 @@ def _from_pretrained_recording(auto_class, ckpt_path, **kwargs):
     accounts for on-the-fly key conversion, which a set re-derived afterwards would have to
     replay to avoid mistaking a renamed key for an unplaced one.
     """
-    model, loading_info = auto_class.from_pretrained(ckpt_path, output_loading_info=True, **kwargs)
+    with prepare_model_for_loading(model_type, ckpt_path, kwargs.get("trust_remote_code", False)):
+        model, loading_info = auto_class.from_pretrained(
+            ckpt_path, output_loading_info=True, **kwargs
+        )
     unexpected = loading_info.get("unexpected_keys") or []
     record_unplaced_source_keys(model, _resolved_local_dir(ckpt_path), unexpected)
     if unexpected:
@@ -747,23 +750,21 @@ def get_model(
         )
 
     if is_speculative(hf_config):
-        with prepare_model_for_loading(hf_config.model_type, ckpt_path, trust_remote_code):
-            model = _from_pretrained_recording(
-                AutoModelForCausalLM,
-                ckpt_path,
-                device_map=device_map,
-                **model_kwargs,
-            )
+        model = _from_pretrained_recording(
+            AutoModelForCausalLM,
+            ckpt_path,
+            model_type=hf_config.model_type,
+            device_map=device_map,
+            **model_kwargs,
+        )
     elif has_pack_quantized_config(hf_config):
         from modelopt.torch.quantization.plugins.huggingface import patch_compressed_linear_loading
 
-        with (
-            prepare_model_for_loading(hf_config.model_type, ckpt_path, trust_remote_code),
-            patch_compressed_linear_loading(),
-        ):
+        with patch_compressed_linear_loading():
             model = _from_pretrained_recording(
                 AutoModelForCausalLM,
                 ckpt_path,
+                model_type=hf_config.model_type,
                 device_map="auto",
                 trust_remote_code=trust_remote_code,
                 dtype="auto",
@@ -786,13 +787,13 @@ def get_model(
         # materialization. Sequential keeps each shard's dequant on a single device
         # (the whole model lands on one GPU when it fits there).
         model_kwargs["quantization_config"] = Mxfp4Config(dequantize=True)
-        with prepare_model_for_loading(hf_config.model_type, ckpt_path, trust_remote_code):
-            model = _from_pretrained_recording(
-                AutoModelForCausalLM,
-                ckpt_path,
-                device_map="cpu" if device == "cpu" else "sequential",
-                **model_kwargs,
-            )
+        model = _from_pretrained_recording(
+            AutoModelForCausalLM,
+            ckpt_path,
+            model_type=hf_config.model_type,
+            device_map="cpu" if device == "cpu" else "sequential",
+            **model_kwargs,
+        )
     else:
         if not hf_config.architectures:
             raise ValueError(f"Model config at {ckpt_path} has no architectures defined")
@@ -877,13 +878,13 @@ def get_model(
         model_kwargs2 = _apply_dtype_to_config(model_kwargs, config_dtype, architecture)
         if _disk_offload:
             model_kwargs2["offload_folder"] = offload_folder
-        with prepare_model_for_loading(hf_config.model_type, ckpt_path, trust_remote_code):
-            model = _from_pretrained_recording(
-                auto_model_module,
-                ckpt_path,
-                device_map=device_map,
-                **model_kwargs2,
-            )
+        model = _from_pretrained_recording(
+            auto_model_module,
+            ckpt_path,
+            model_type=hf_config.model_type,
+            device_map=device_map,
+            **model_kwargs2,
+        )
     model.eval()
     if has_pack_quantized_config(hf_config):
         _unpack_compressed_linear_weights(model, ckpt_path)

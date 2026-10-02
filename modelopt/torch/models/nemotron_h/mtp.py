@@ -38,12 +38,10 @@ from modelopt.torch.utils.plugins.hf_checkpoint_utils import indexed_weight_map
 
 __all__ = [
     "has_mtp_weights",
-    "mtp_loaded_during_model_load",
     "prepare_for_calibration",
     "prepare_for_loading",
 ]
 
-_MTP_MODELS = weakref.WeakSet()
 _MTP_FORWARD_MODELS = weakref.WeakSet()
 
 
@@ -210,7 +208,6 @@ def prepare_for_loading(checkpoint_path: str, trust_remote_code: bool):
             language_model.mtp = _NemotronHMTP(language_model.config)
         if len(language_model.mtp.layers) != num_blocks:
             raise ValueError("Nemotron-H MTP block count does not match the checkpoint tensors")
-        _MTP_MODELS.add(language_model)
         constructed = True
 
     model_class.__init__ = init_with_mtp
@@ -224,12 +221,6 @@ def prepare_for_loading(checkpoint_path: str, trust_remote_code: bool):
             )
     finally:
         model_class.__init__ = original_init
-
-
-def mtp_loaded_during_model_load(model) -> bool:
-    """Return whether ``model`` contains an MTP tail constructed by this adapter."""
-    language_model = getattr(model, "language_model", model)
-    return language_model in _MTP_MODELS
 
 
 def prepare_for_calibration(full_model) -> bool:

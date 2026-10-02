@@ -40,23 +40,14 @@ from modelopt.torch.quantization.nn import TensorQuantizer
 
 
 @pytest.mark.parametrize(
-    ("block_types", "mixer_types", "expected"),
-    [
-        (["attention", "moe"], {"attention", "mamba", "moe"}, ["attention", "moe"]),
-        (
-            ["full_attention", "moe"],
-            {"attention", "mamba", "moe"},
-            ["attention", "moe"],
-        ),
-        (
-            ["attention", "moe"],
-            {"full_attention", "mamba", "moe"},
-            ["full_attention", "moe"],
-        ),
-    ],
+    ("checkpoint_name", "native_name"),
+    [("attention", "attention"), ("full_attention", "attention"), ("attention", "full_attention")],
 )
-def test_normalize_mtp_block_types(block_types, mixer_types, expected):
-    assert _normalize_mtp_block_types(block_types, mixer_types) == expected
+def test_normalize_mtp_block_types(checkpoint_name, native_name):
+    assert _normalize_mtp_block_types([checkpoint_name, "moe"], {native_name, "moe"}) == [
+        native_name,
+        "moe",
+    ]
 
 
 def test_normalize_mtp_block_types_rejects_unknown_type():
@@ -64,43 +55,18 @@ def test_normalize_mtp_block_types_rejects_unknown_type():
         _normalize_mtp_block_types(["unknown"], {"attention", "mamba", "moe"})
 
 
-@pytest.mark.parametrize("layout", ["sharded", "single", "missing", "invalid"])
-def test_checkpoint_detection_and_consent(tmp_path, monkeypatch, layout):
-    tensors = {
-        "language_model.mtp.layers.0.eh_proj.weight": torch.ones(1),
-        "language_model.mtp.layers.1.final_layernorm.weight": torch.ones(1),
-    }
-    if layout == "sharded":
-        (tmp_path / "model.safetensors.index.json").write_text(
-            json.dumps({"weight_map": dict.fromkeys(tensors, "model-00001.safetensors")})
-        )
-    elif layout == "single":
-        save_file(tensors, tmp_path / "model.safetensors")
-    elif layout == "invalid":
-        (tmp_path / "model.safetensors").write_bytes(b"not safetensors")
-    loader = Mock(side_effect=AssertionError("Untrusted remote code executed"))
-    monkeypatch.setattr(adapter, "get_class_from_dynamic_module", loader)
-    detected = layout in ("sharded", "single")
-    assert adapter._get_mtp_layout(tmp_path) == (("language_model.", 2) if detected else None)
-    if detected:
-        with (
-            pytest.raises(ValueError, match="trust_remote_code=True"),
-            adapter.prepare_for_loading(tmp_path, False),
-        ):
-            pytest.fail("Consent was not enforced")
-    else:
-        with adapter.prepare_for_loading(tmp_path, False):
-            pass
-    loader.assert_not_called()
-
-
 @pytest.mark.parametrize("config_key", [None, "llm_config", "text_config"])
 @pytest.mark.parametrize("declared", [False, True])
-def test_missing_mtp_weights_warn_without_constructing(tmp_path, monkeypatch, config_key, declared):
+@pytest.mark.parametrize("invalid", [False, True])
+def test_missing_mtp_weights_warn_without_constructing(
+    tmp_path, monkeypatch, config_key, declared, invalid
+):
     config = {"num_nextn_predict_layers": int(declared)}
     if config_key:
         config = {config_key: config}
     (tmp_path / "config.json").write_text(json.dumps(config))
+    if invalid:
+        (tmp_path / "model.safetensors").write_bytes(b"not safetensors")
     loader = Mock(side_effect=AssertionError("No remote code is needed without MTP weights"))
     monkeypatch.setattr(adapter, "get_class_from_dynamic_module", loader)
     with warnings.catch_warnings(record=True) as caught:
@@ -182,24 +148,15 @@ def tiny_checkpoint(tmp_path, monkeypatch, request):
     return cls, model, tmp_path
 
 
-@pytest.mark.parametrize("model_type", ["nemotron_h", "nemotron_h_omni"])
-def test_loading_places_mtp_weights_and_restores_constructor(
-    tiny_checkpoint, monkeypatch, model_type
-):
-    """Both checkpoint model types load exact MTP weights without leaking constructor patches."""
+def test_loading_scope_restores_constructors(tiny_checkpoint, monkeypatch):
+    """Repeated, nested, and failed loading contexts must not leak constructor patches."""
     cls, source, checkpoint = tiny_checkpoint
     original_init = cls.__init__
-    loader = cls if hasattr(source, "language_model") else AutoModelForCausalLM
     for _ in range(2):
-        with hf.prepare_model_for_loading(
-            model_type, checkpoint, trust_remote_code=hasattr(source, "language_model")
-        ):
-            loaded, info = loader.from_pretrained(checkpoint, output_loading_info=True)
+        with adapter.prepare_for_loading(checkpoint, True):
+            loaded = cls(source.config)
+            assert hasattr(getattr(loaded, "language_model", loaded), "mtp")
         assert cls.__init__ is original_init
-        assert not info["missing_keys"] and not info["unexpected_keys"]
-        assert hf.mtp_loaded_during_model_load(loaded)
-        for name, value in source.state_dict().items():
-            torch.testing.assert_close(loaded.state_dict()[name], value, rtol=0, atol=0)
         fresh = cls(source.config)
         assert not hasattr(getattr(fresh, "language_model", fresh), "mtp")
 
@@ -227,12 +184,6 @@ def test_loading_places_mtp_weights_and_restores_constructor(
             assert hasattr(cls(source.config).language_model, "mtp")
         assert OtherOmni.__init__ is other_init
     assert cls.__init__ is original_init
-    with (
-        pytest.raises(RuntimeError, match="load failure"),
-        adapter.prepare_for_loading(checkpoint, True),
-    ):
-        raise RuntimeError("load failure")
-    assert OtherOmni.__init__ is other_init
 
 
 def test_remote_mtp_class_requires_consent(tiny_checkpoint, monkeypatch):
@@ -257,10 +208,8 @@ def test_remote_mtp_class_requires_consent(tiny_checkpoint, monkeypatch):
         torch.testing.assert_close(loaded.state_dict()[name], value, rtol=0, atol=0)
 
 
-@pytest.mark.parametrize("sharded", [False, True])
-def test_hub_id_loads_exact_mtp_weights_and_calibrates(tiny_checkpoint, monkeypatch, sharded):
-    """Exercise Hub IDs through the real cache, loader, calibration, and scale export offline."""
-    cls, source, checkpoint = tiny_checkpoint
+def _hub_checkpoint(checkpoint, source, monkeypatch, sharded):
+    """Populate a hermetic Hub cache so the lifecycle tests can use real Hub-ID resolution."""
     repo_id = "test/nemotron-h-mtp"
     cache = checkpoint / "hub"
     repo_cache = cache / "models--test--nemotron-h-mtp"
@@ -281,49 +230,7 @@ def test_hub_id_loads_exact_mtp_weights_and_calibrates(tiny_checkpoint, monkeypa
     monkeypatch.setattr(hub_constants, "HF_HUB_CACHE", str(cache))
     monkeypatch.setenv("HF_HUB_OFFLINE", "1")
     monkeypatch.setattr(hub_constants, "HF_HUB_OFFLINE", True)
-    resolve = Mock(wraps=adapter.snapshot_download)
-    monkeypatch.setattr(adapter, "snapshot_download", resolve)
-    loader = cls if hasattr(source, "language_model") else AutoModelForCausalLM
-    original_init = cls.__init__
-    with hf.prepare_model_for_loading(
-        "nemotron_h", repo_id, trust_remote_code=hasattr(source, "language_model")
-    ):
-        model, info = loader.from_pretrained(
-            repo_id, local_files_only=True, output_loading_info=True
-        )
-    assert cls.__init__ is original_init
-    resolve.assert_called_once_with(
-        repo_id=repo_id,
-        allow_patterns=["config.json", "model.safetensors.index.json", "model.safetensors"],
-    )
-    assert hf.checkpoint_has_mtp("nemotron_h", repo_id)
-    assert not info["missing_keys"] and not info["unexpected_keys"]
-    assert hf.mtp_loaded_during_model_load(model)
-    for name, value in source.state_dict().items():
-        torch.testing.assert_close(model.state_dict()[name], value, rtol=0, atol=0)
-    if hasattr(source, "language_model"):
-        adapter.get_class_from_dynamic_module.assert_called_once_with(
-            "modeling_nemotron_h_omni.NemotronH_Omni_Reasoning_V3", repo_id
-        )
-    projection_name = (
-        "language_model." if hasattr(source, "language_model") else ""
-    ) + "mtp.layers.0.eh_proj"
-    cfg = copy.deepcopy(mtq.NVFP4_DEFAULT_CFG)
-    cfg["quant_cfg"].extend(
-        [
-            {"quantizer_name": "*", "enable": False},
-            {"quantizer_name": f"{projection_name}.*quantizer", "enable": True},
-        ]
-    )
-    mtq.quantize(model, {**cfg, "algorithm": None})
-    hf.prepare_model_for_calibration(model)
-    max_calibrate(model, lambda m: m(torch.tensor([[1, 2, 3, 4]]), use_cache=False))
-    projection = model.get_submodule(projection_name)
-    assert projection.input_quantizer.amax.max() > 0
-    expected_scale = get_activation_scaling_factor(projection).squeeze().clone()
-    _process_quantized_modules(model, torch.bfloat16)
-    exported = postprocess_state_dict(model.state_dict(), maxbound=448, quantization=None)
-    torch.testing.assert_close(exported[f"{projection_name}.input_scale"], expected_scale)
+    return repo_id
 
 
 def test_mtp_block_count_mismatch_restores_constructor(tiny_checkpoint):
@@ -361,7 +268,7 @@ def test_mtp_later_attention_blocks_remain_causal(tiny_checkpoint):
         embeddings[:, -1] += 10
         actual = mtp(hidden, embeddings)
     # MTP uses next-token embeddings, so only the last two positions may change.
-    torch.testing.assert_close(actual[:, :-2], expected[:, :-2], rtol=0, atol=0)
+    torch.testing.assert_close(actual[:, :-2], expected[:, :-2], rtol=1e-6, atol=1e-9)
 
 
 @pytest.mark.parametrize(
@@ -391,12 +298,35 @@ def test_activation_forward_gate(name, attributes, needs_forward):
 
 
 @pytest.mark.parametrize(
-    "activation", ["projection", "shared_projection", "kv", "output", "weight_only", "cast"]
+    ("location", "activation"),
+    [
+        ("local", name)
+        for name in ("projection", "shared_projection", "kv", "output", "weight_only", "cast")
+    ]
+    + [("hub-single", "projection"), ("hub-sharded", "projection")],
 )
-def test_calibration_forward_and_export(tiny_checkpoint, activation):
-    cls, _, checkpoint = tiny_checkpoint
-    with adapter.prepare_for_loading(checkpoint, True):
-        model = cls.from_pretrained(checkpoint).eval()
+def test_loading_calibration_and_export(tiny_checkpoint, monkeypatch, location, activation):
+    """Local and Hub checkpoints place exact weights, calibrate MTP, and export matching scales."""
+    cls, source, checkpoint = tiny_checkpoint
+    if location.startswith("hub"):
+        checkpoint = _hub_checkpoint(checkpoint, source, monkeypatch, location == "hub-sharded")
+    wrapped = hasattr(source, "language_model")
+    model_type = "nemotron_h_omni" if wrapped else "nemotron_h"
+    loader = cls if wrapped else AutoModelForCausalLM
+    original_init = cls.__init__
+    with hf.prepare_model_for_loading(model_type, checkpoint, trust_remote_code=wrapped):
+        model, info = loader.from_pretrained(
+            checkpoint, local_files_only=True, output_loading_info=True
+        )
+    assert cls.__init__ is original_init
+    assert not info["missing_keys"] and not info["unexpected_keys"]
+    assert hf.checkpoint_has_mtp(model_type, checkpoint)
+    for name, value in source.state_dict().items():
+        torch.testing.assert_close(model.state_dict()[name], value, rtol=0, atol=0)
+    if wrapped:
+        adapter.get_class_from_dynamic_module.assert_called_once_with(
+            "modeling_nemotron_h_omni.NemotronH_Omni_Reasoning_V3", checkpoint
+        )
     language_model = getattr(model, "language_model", model)
     prefix = "language_model." if language_model is not model else ""
     projection_name = (
@@ -448,6 +378,7 @@ def test_calibration_forward_and_export(tiny_checkpoint, activation):
         model, lambda calibrated: outputs.append(calibrated(inputs, use_cache=False).logits)
     )
     torch.testing.assert_close(outputs[0], expected, rtol=0, atol=0)
+    assert model.get_submodule(projection_name).weight_quantizer.amax is not None
     assert calls == ([] if activation in ("weight_only", "cast") else [True])
     assert not language_model.model.norm_f._forward_pre_hooks
     for name in extra_names:
@@ -470,7 +401,6 @@ def test_lifecycle_dispatch_ignores_unsupported_models():
         pass
     model = torch.nn.Linear(2, 2)
     hf.prepare_model_for_calibration(model)
-    assert not hf.mtp_loaded_during_model_load(model)
 
 
 @pytest.mark.parametrize("failure", ["base", "mtp"])

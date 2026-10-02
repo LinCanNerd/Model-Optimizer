@@ -20,7 +20,6 @@ from contextlib import nullcontext
 
 __all__ = [
     "checkpoint_has_mtp",
-    "mtp_loaded_during_model_load",
     "prepare_model_for_calibration",
     "prepare_model_for_loading",
 ]
@@ -41,27 +40,19 @@ def _get_plugin(model_type):
 def prepare_model_for_loading(model_type, checkpoint_path: str, trust_remote_code: bool):
     """Return a context that prepares checkpoint-only modules during model construction."""
     plugin = _get_plugin(model_type)
-    hook = getattr(plugin, "prepare_for_loading", None) if plugin is not None else None
-    return hook(checkpoint_path, trust_remote_code) if hook is not None else nullcontext()
+    if plugin is None:
+        return nullcontext()
+    return plugin.prepare_for_loading(checkpoint_path, trust_remote_code)
 
 
 def checkpoint_has_mtp(model_type, checkpoint_path: str) -> bool:
     """Use the model plugin to detect MTP tensors before selecting a supported loading path."""
     plugin = _get_plugin(model_type)
-    hook = getattr(plugin, "has_mtp_weights", None) if plugin is not None else None
-    return bool(hook(checkpoint_path)) if hook is not None else False
+    return plugin is not None and plugin.has_mtp_weights(checkpoint_path)
 
 
 def prepare_model_for_calibration(model) -> None:
     """Run the optional model-specific hook that augments the default calibration forward."""
     plugin = _get_plugin(getattr(getattr(model, "config", None), "model_type", None))
-    hook = getattr(plugin, "prepare_for_calibration", None) if plugin is not None else None
-    if hook is not None:
-        hook(model)
-
-
-def mtp_loaded_during_model_load(model) -> bool:
-    """Whether the model plugin loaded native MTP tensors during ``from_pretrained``."""
-    plugin = _get_plugin(getattr(getattr(model, "config", None), "model_type", None))
-    hook = getattr(plugin, "mtp_loaded_during_model_load", None) if plugin is not None else None
-    return bool(hook(model)) if hook is not None else False
+    if plugin is not None:
+        plugin.prepare_for_calibration(model)

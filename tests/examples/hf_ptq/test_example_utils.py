@@ -35,16 +35,24 @@ def _write_safetensors(path, tensors):
     save_file(tensors, str(path), metadata={"format": "pt"})
 
 
-def test_get_model_preserves_preparation_error(monkeypatch, tmp_path):
+@pytest.mark.parametrize("failure_at", [1, 2])
+def test_get_model_preserves_preparation_error(monkeypatch, tmp_path, failure_at):
     config = LlamaConfig(architectures=["LlamaForCausalLM"])
     monkeypatch.setattr(example_utils.AutoConfig, "from_pretrained", lambda *a, **k: config)
+    calls = 0
 
     def prepare(*args):
-        raise ValueError("MTP preparation failed")
+        nonlocal calls
+        calls += 1
+        assert args == (config.model_type, str(tmp_path), False)
+        if calls == failure_at:
+            raise ValueError("MTP preparation failed")
+        return nullcontext()
 
     monkeypatch.setattr(example_utils, "prepare_model_for_loading", prepare)
     with pytest.raises(ValueError, match="MTP preparation failed"):
         example_utils.get_model(str(tmp_path), device="cpu")
+    assert calls == failure_at
 
 
 def test_copy_custom_model_files_preserves_non_weight_sidecars(tmp_path):
