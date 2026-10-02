@@ -64,7 +64,9 @@ weights during export. Recheck source metadata before choosing versions. Record
 the exact source/model revisions, image digest, dependency freeze, interpreter,
 import paths, and CUDA libraries. A reference clean-image Dockerfile is provided
 in `scripts/`; its build arguments require explicit base-image and source pins.
-Keep serving frameworks in a separate image.
+Keep serving frameworks in a separate image. Run Python probes outside the
+source checkout so its package directory and build metadata cannot shadow the
+installed wheel. The reference image defaults to `/opt/ptq`.
 
 Before launching calibration, require `pip check`, unambiguous ModelOpt
 provenance, `hf_checkpoint_utils` import, model-class imports, `hf_ptq.py --help`,

@@ -25,4 +25,4 @@ RUN python /opt/ptq/verify_environment.py \
     --model-class "${MODEL_CLASS}" ${PACKAGE_CHECK_FLAGS} \
     > /opt/ptq/environment.json && \
     python /opt/modelopt/examples/hf_ptq/hf_ptq.py --help > /opt/ptq/hf-ptq-help.txt
-WORKDIR /opt/modelopt
+WORKDIR /opt/ptq
