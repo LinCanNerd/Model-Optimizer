@@ -809,6 +809,9 @@ class ModelOptHFTrainer(Trainer):
     def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
         """Compute loss, patching lm_head to identity when using liger fused loss."""
         if self.use_liger_kernel:
+            # The fused loss is computed here from the hidden states, so drop the ``skip_logits``
+            # that transformers>=5.15 adds for eval: Liger would then need the popped labels.
+            inputs = {k: v for k, v in inputs.items() if k != "skip_logits"}
             with self._liger_identity_lm_head():
                 return super().compute_loss(model, inputs, return_outputs=return_outputs, **kwargs)
         return super().compute_loss(model, inputs, return_outputs=return_outputs, **kwargs)
