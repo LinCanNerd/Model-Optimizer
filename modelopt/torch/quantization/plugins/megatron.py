@@ -62,7 +62,7 @@ from ..utils import sync_moe_expert_amax
 from ..utils.layerwise_calib import LayerActivationCollector
 from .custom import CUSTOM_MODEL_PLUGINS, _ParallelLinear
 from .gdn import GatedDeltaNetStateQuantMixin
-from .kda import KimiDeltaAttentionStateQuantMixin
+from .kda import KimiDeltaAttentionStateQuantMixin, _discard_legacy_w_quantizer_state
 from .linear_attention import _LinearAttentionQuantMixin
 
 try:
@@ -300,6 +300,8 @@ def quant_module_set_extra_state(self, state: Any):
     quantizer_state = state.get("modelopt_quantizer_state", None)
 
     if quantizer_state is not None:
+        quantizer_state = dict(quantizer_state)
+        _discard_legacy_w_quantizer_state(quantizer_state)
         for name, module in self.named_modules():
             if isinstance(module, TensorQuantizer):
                 quantizer_substate = quantizer_state.get(name)
