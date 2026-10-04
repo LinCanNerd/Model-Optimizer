@@ -517,7 +517,7 @@ class HFParallelLinear(torch.nn.Linear, DynamicModule):
         return (
             tp_mesh is not None
             and isinstance(weight, torch.distributed.tensor.DTensor)
-            and weight.device_mesh is tp_mesh
+            and weight.device_mesh == tp_mesh
             and tuple(weight.placements) == cls.shard
         )
 
@@ -582,12 +582,24 @@ def convert_hf_parallel_linears_on_the_fly(model):
     This method converts them to `HFColumnParallelLinear` and `HFRowParallelLinear` so that they
     can be treated as TP sharded layers and not like regular nn.Linear layers.
     """
-    tp_mesh = getattr(model, "_device_mesh", None)  # transformers>=5.16
-    for name, module in model.named_modules():
+    # transformers>=5.16 keeps the TP mesh on the PreTrainedModel, which may sit inside a wrapper.
+    tp_mesh = next(
+        (m._device_mesh for m in model.modules() if getattr(m, "_device_mesh", None) is not None),
+        None,
+    )
+    converted = False
+    for module in model.modules():
         if HFColumnParallelLinear.is_compatible(module, tp_mesh):
             HFColumnParallelLinear.convert(module)
+            converted = True
         elif HFRowParallelLinear.is_compatible(module, tp_mesh):
             HFRowParallelLinear.convert(module)
+            converted = True
+    if tp_mesh is not None and not converted:
+        warnings.warn(
+            "Found a transformers tensor-parallel mesh but no TP-sharded linear layer; they will be"
+            " quantized as unsharded layers."
+        )
 
 
 if transformers.pytorch_utils.Conv1D not in QuantModuleRegistry:
