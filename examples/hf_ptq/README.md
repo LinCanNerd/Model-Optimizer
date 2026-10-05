@@ -602,6 +602,21 @@ torchrun \
 
 See [Recipe-based Quantization](#recipe-based-quantization) for the recipe format and built-in recipe names. The exported checkpoint can be deployed using TensorRT-LLM/ vLLM/ SGLang. For more details refer to the [deployment section](#deployment) of this document.
 
+#### Gradient-based weight AutoQuantize
+
+Use a weight AutoQuantize recipe with the same `torchrun` launch. For example, replace
+the recipe above with `general/auto_quantize/nvfp4_fp8_at_5p4bits` and add
+`--auto_quantize_checkpoint <shared_search_state_directory>`. Each rank saves its state as
+`rank<N>.pth`; resume with the same model, recipe, data, and parallelism configuration.
+Keep `--batch_size` explicit: gradient scoring runs both forward and backward passes.
+
+Qwen checkpoints with `model_type` `qwen3_5` or `qwen3_5_moe` support this path for
+**text-only calibration**. The loader retains the conditional-generation architecture and
+vision tower, but `--calib_with_images` remains unsupported with FSDP2. During mixed-format
+export, linear-attention QKV/Z and B/A projections retain their separate runtime-fusion
+groups. Weight AutoQuantize with FSDP2 remains experimental; KV-cache AutoQuantize is not
+supported on this path.
+
 > *Performance Note: FSDP2 is designed for training workloads and may result in longer calibration and export times. For faster calibration, maximize the batch size based on available GPU memory and choose the right number of GPUs to avoid unnecessary communication.*
 
 ## Evaluate Accuracy

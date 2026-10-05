@@ -13,6 +13,9 @@ Changelog
 
 *Quantization*
 
+- Support text-only Qwen conditional-generation checkpoints in the experimental FSDP2 weight
+  AutoQuantize path, including fresh search-state directories and separate linear-attention
+  QKV/Z and B/A fusion groups during mixed-format export.
 - Add composed Hugging Face AutoQuantize recipes that run fixed PTQ or weight AutoQuantize before
   a separate KV-cache AutoQuantize stage, with independent resumable checkpoints for the weight and
   KV searches. Uniform-weight plus layer-wise mixed-KV exports are marked unsupported for deployment
