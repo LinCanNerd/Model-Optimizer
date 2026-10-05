@@ -24,7 +24,7 @@ from torch.nn import functional as F
 from torch.nn import init
 
 import modelopt.torch.quantization as mtq
-from modelopt.torch.export.model_config import QUANTIZATION_MXFP8
+from modelopt.torch.export.quant_format import QUANTIZATION_MXFP8
 from modelopt.torch.export.quant_utils import (
     get_activation_scaling_factor,
     get_quantization_format,
