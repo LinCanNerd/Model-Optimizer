@@ -19,6 +19,7 @@ import json
 from typing import TYPE_CHECKING
 
 import pytest
+import torch
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -27,7 +28,6 @@ if TYPE_CHECKING:
 @pytest.fixture
 def make_fastgen_cache():
     """Create a tiny, fully local FastGen latent cache."""
-    torch = pytest.importorskip("torch")
 
     def _make(
         root: Path,

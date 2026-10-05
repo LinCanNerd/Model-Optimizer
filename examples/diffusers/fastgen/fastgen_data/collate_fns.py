@@ -188,7 +188,7 @@ def build_text_to_image_multiresolution_dataloader(
     Args:
         cache_dir: Directory with the preprocessed cache (metadata.json, shards, resolution
             subdirs).
-        train_text_encoder: If True, the dataset returns tokens instead of embeddings.
+        train_text_encoder: Unsupported; use precomputed prompt embeddings.
         prompt_only: Return text conditioning without image latents.
         batch_size: Batch size per GPU.
         dp_rank: Data-parallel rank.
@@ -208,6 +208,10 @@ def build_text_to_image_multiresolution_dataloader(
     Returns:
         ``(StatefulDataLoader, SequentialBucketSampler)``.
     """
+    if train_text_encoder:
+        raise NotImplementedError(
+            "Text-encoder training is not supported; preprocess to pre-encoded `prompt_embeds`."
+        )
     dataset = TextToImageDataset(
         cache_dir=cache_dir,
         train_text_encoder=train_text_encoder,
