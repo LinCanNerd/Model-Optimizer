@@ -3,14 +3,18 @@
 [Parallel Decoding Distillation (PDD)](https://arxiv.org/abs/2607.26004) trains one
 diffusion-transformer call to predict several consecutive rectified-flow intervals. This example
 uses a 128-interval shifted-flow grid and a Qwen-Image student with 128 output heads. A block
-schedule such as `[32, 32, 32, 32]` therefore generates with four transformer calls; inference may
-choose any positive block sizes that sum to 128.
+schedule such as `[32, 32, 32, 32]` therefore generates with four transformer calls.
 
 The frozen Qwen-Image teacher constructs the PDD target using Qwen's native packed, per-token CFG
 rescale. The checked-in configuration adapts the paper's data-free Midpoint algorithm: it trains the
 full student from on-policy trajectories carried from fresh noise, using a constant `1e-5` learning
 rate for 3,000 steps. It samples target spans up to 64 intervals and advances each carried
-trajectory by 16 intervals, supporting 2-, 4-, and 8-NFE inference schedules.
+trajectory by 16 intervals, so student inputs during training start at multiples of 16.
+
+For this recipe, we recommend positive inference block sizes that are multiples of 16, no larger
+than 64, and sum to 128. Equal-block schedules can use 2, 4, or 8 transformer calls. Uneven schedules
+such as `[16, 32, 32, 48]` are theoretically supported but have not been tested for generation
+quality.
 
 Data-free removes image supervision, not text conditioning. Training still consumes positive
 prompt embeddings and masks plus a static negative-prompt embedding for teacher CFG. Supply these
