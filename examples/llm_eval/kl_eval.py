@@ -98,12 +98,17 @@ def evaluate(reference, quantized, tokenizer, prompts, max_new_tokens=512, top_k
         inputs = torch.tensor(
             [prompt["input_ids"]], device=reference.get_input_embeddings().weight.device
         )
-        sequence = reference.generate(
-            input_ids=inputs,
-            attention_mask=torch.ones_like(inputs),
-            generation_config=generation,
-            use_model_defaults=False,
-        )
+        # Transformers 5 removed use_model_defaults=False. Isolate checkpoint decoding settings.
+        model_generation = reference.generation_config
+        try:
+            reference.generation_config = generation
+            sequence = reference.generate(
+                input_ids=inputs,
+                attention_mask=torch.ones_like(inputs),
+                generation_config=generation,
+            )
+        finally:
+            reference.generation_config = model_generation
         generated = sequence[0, inputs.shape[1] :].cpu().tolist()
         metrics = score_continuation(reference, quantized, sequence, inputs.shape[1], top_k)
         results.append(
@@ -186,6 +191,7 @@ def main():
     # Defer hf_ptq's heavy export/calibration imports so metric helpers remain usable on CPU.
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "hf_ptq"))
     import hf_ptq
+
     from modelopt.torch.quantization.nn import TensorQuantizer
 
     ptq_argv = ["--model", args.model, "--recipe", args.recipe, "--skip_generate"]

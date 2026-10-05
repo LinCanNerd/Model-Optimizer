@@ -93,12 +93,17 @@ def test_real_generation_stops_at_eos_and_scores_it(kl_eval):
         for parameter in reference.parameters():
             parameter.zero_()
     # Equal logits greedily choose token 0, which is this model's EOS.
+    # Checkpoint decoding settings must not override the evaluation's plain greedy policy.
+    reference.generation_config.suppress_tokens = [0]
+    reference.generation_config.return_dict_in_generate = True
+    original_generation = copy.deepcopy(reference.generation_config)
     quantized = copy.deepcopy(reference)
     tokenizer = SimpleNamespace(eos_token_id=0, pad_token_id=0)
     prompts = [{"block_index": 3, "input_ids": [4, 5, 6]}]
     result = kl_eval.evaluate(reference, quantized, tokenizer, prompts, max_new_tokens=4, top_k=4)
     assert result["examples"][0]["generated_ids"] == [0]
     assert result["examples"][0]["generated_tokens"] == 1
+    assert reference.generation_config == original_generation
     assert result["summary"] == pytest.approx(
         {"full_vocab_kl": 0, "conditional_topk_kl": 0}, abs=1e-7
     )
