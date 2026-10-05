@@ -49,6 +49,10 @@ evaluation and inherits `hf_ptq.py` defaults: the CNN/DailyMail + Nemotron mixtu
 `--dataset`, `--calib_size`, `--calib_seq`, and `--batch_size`; these flags affect
 calibration only. Evaluation processes one prompt at a time.
 
+The default [Nemotron calibration dataset](https://huggingface.co/datasets/nvidia/Nemotron-Post-Training-Dataset-v2)
+is gated. Authenticate with a Hugging Face account that has access before running;
+if using an isolated `HF_HOME`, make the token available through `HF_TOKEN_PATH`.
+
 Run in one process with sufficient GPU memory for **two model copies**, calibration
 workspace, and one example's logits. The existing hf_ptq loader can place models
 across visible GPUs; `--gpu_max_mem_percentage` controls its budget. The initial
