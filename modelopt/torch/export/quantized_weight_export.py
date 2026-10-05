@@ -36,7 +36,7 @@ from modelopt.torch.quantization.utils import quantizer_attr_names, representati
 
 from ..quantization.nn import SequentialQuantizer, TensorQuantizer
 from .convert_hf_config import convert_hf_quant_config_format
-from .model_config import (
+from .quant_format import (
     QUANTIZATION_FP8,
     QUANTIZATION_FP8_PB_WO,
     QUANTIZATION_FP8_PC_PT,

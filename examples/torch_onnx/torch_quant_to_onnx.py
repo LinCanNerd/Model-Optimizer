@@ -35,7 +35,7 @@ from evaluation import evaluate
 
 import modelopt.torch.quantization as mtq
 from modelopt.recipe import ModelOptAutoQuantizeRecipe, ModelOptPTQRecipe, load_recipe
-from modelopt.recipe.presets import QUANT_CFG_CHOICES
+from modelopt.recipe.presets import QUANT_CFG_CHOICES, RecipeSupersededAction
 from modelopt.torch.quantization.nn import TensorQuantizer
 from modelopt.torch.quantization.plugins.custom import CUSTOM_POST_CONVERSION_PLUGINS
 
@@ -517,9 +517,13 @@ def main():
     )
     parser.add_argument(
         "--qformat",
+        action=RecipeSupersededAction,
         choices=["fp8", "mxfp8", "int8", "nvfp4", "int4_awq", "auto"],
         default="mxfp8",
-        help="Quantization format to apply when --recipe is not provided. Default is MXFP8.",
+        help=(
+            "(deprecated: use --recipe) Quantization format to apply when --recipe is not "
+            "provided. Default is MXFP8."
+        ),
     )
     parser.add_argument(
         "--recipe",
@@ -593,6 +597,16 @@ def main():
         "--trt_build",
         action="store_true",
         help="Build a TensorRT engine from the exported ONNX model using trtexec.",
+    )
+    parser.add_argument(
+        "--trt_builder_optimization_level",
+        type=int,
+        choices=range(6),
+        default=4,
+        help=(
+            "TensorRT builder optimization level. Lower levels build faster but may reduce "
+            "inference performance."
+        ),
     )
     parser.add_argument(
         "--no_pretrained",
@@ -731,16 +745,16 @@ def main():
     print(f"Quantized ONNX model is saved to {args.onnx_save_path}")
 
     if args.trt_build:
-        build_trt_engine(args.onnx_save_path)
+        build_trt_engine(args.onnx_save_path, args.trt_builder_optimization_level)
 
 
-def build_trt_engine(onnx_path):
+def build_trt_engine(onnx_path, optimization_level=4):
     """Build a TensorRT engine from the exported ONNX model using trtexec."""
     cmd = [
         "trtexec",
         f"--onnx={onnx_path}",
         "--stronglyTyped",
-        "--builderOptimizationLevel=4",
+        f"--builderOptimizationLevel={optimization_level}",
     ]
     print(f"\nBuilding TensorRT engine: {' '.join(cmd)}")
     try:
