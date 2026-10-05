@@ -28,7 +28,7 @@ supported combinations.
 ### The shipped recipes
 
 <details>
-<summary>All 31 <code>general/ptq/</code> recipes (click to expand)</summary>
+<summary>All 32 <code>general/ptq/</code> recipes (click to expand)</summary>
 
 | Recipe | Model body | KV cache | Calibration |
 |--------|-----------|----------|-------------|
@@ -63,6 +63,7 @@ supported combinations.
 | `iq2_xxs` | IQ2_XXS W2A16 (2.06 bpw), eligible linears | none | none (no calibration) |
 | `iq2_xs` | IQ2_XS W2A16 (2.31 bpw), eligible linears | none | none (no calibration) |
 | `iq2_s` | IQ2_S W2A16 (2.56 bpw), eligible linears | none | none (no calibration) |
+| `gdn_state_int8_dynamic` | GDN decode state INT8 + Hadamard; weights unchanged | none | none (dynamic scales; requires a prefix/decode phase context) |
 
 </details>
 
