@@ -241,6 +241,16 @@ Available KV cache formats:
 
 > *Formats ending in `_cast` (fp8_cast, nvfp4_cast) are fast — they set the amax to the format's full range without data-driven calibration. Other formats use data-driven calibration for potentially better accuracy.*
 
+#### KL divergence from the unquantized model
+
+`--kl_divergence` measures the quantized model right after quantization, before export. It reports the mean KL divergence from the unquantized model, both perplexities, and how often the most likely next token is unchanged. Scoring follows llama.cpp's `llama-perplexity --kl-divergence`: wikitext-2 test, split into 100 consecutive 512-token chunks, with the second half of each chunk scored. The numbers are therefore directly comparable with llama.cpp's for GGUF quants of the same model.
+
+```bash
+python hf_ptq.py --pyt_ckpt_path <model> --recipe <recipe> --export_path <path> --kl_divergence
+```
+
+The unquantized log-probabilities are kept in host memory: chunks × seq_len / 2 × vocabulary float16 values, about 12.7 GB for a 248k vocabulary. `--kl_divergence_chunks` and `--kl_divergence_seq_len` change the split, and `--kl_divergence_text_file` scores another UTF-8 text.
+
 #### MXFP4 → NVFP4 cast (for GPT-OSS)
 
 GPT-OSS checkpoints (`openai/gpt-oss-20b`, `openai/gpt-oss-120b`) ship with native MXFP4 weights (`*_blocks` + `*_scales` in the checkpoint, `quantization_config.quant_method == "mxfp4"`). Passing `--cast_mxfp4_to_nvfp4` tells `hf_ptq.py` to read the source MXFP4 scales and produce a closed-form, bit-exact NVFP4 weight export — no GEMM-level recalibration of the weights needed.
