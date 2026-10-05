@@ -200,7 +200,12 @@ Using Scale Learning
 ********************
 
 Scale learning is a training-time algorithm: the scales are learnt during
-QAT/QAD, so these recipes are not usable as calibration-only PTQ.
+QAT/QAD, so these recipes are not usable as calibration-only PTQ. Scale-only
+learning involves 1/16th as many trainable parameters as regular QAT/QAD, so it
+uses a sixteenth of the gradient state and optimizer memory. Since we need to
+still compute all partial derivatives with respect to the fake-quant weights,
+the compute requirement is the same (although we tend to need fewer steps for
+scale-only learning).
 
 After scales are learnt, there is no deployment cost -- learned scales are
 folded into the exported checkpoint and are the same FP8 block scales the
