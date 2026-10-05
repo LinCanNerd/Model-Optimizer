@@ -80,14 +80,50 @@ def test_matches_a_direct_computation():
     assert result["ppl"] == pytest.approx(math.exp(expected_nll.item()), rel=1e-3)
 
 
-def test_load_eval_tokens_tokenizes_a_text_file_without_special_tokens(tmp_path):
-    def tokenizer(text, add_special_tokens):
-        assert not add_special_tokens
-        return {"input_ids": [ord(c) for c in text]}
+def test_mismatched_vocabulary_is_rejected():
+    reference = kld.collect_reference(get_tiny_qwen3(), _tokens(SEQ_LEN), seq_len=SEQ_LEN)
 
+    with pytest.raises(ValueError, match="another vocabulary"):
+        kld.kl_divergence(get_tiny_qwen3(vocab_size=64), reference)
+
+
+def test_reference_round_trips_through_a_file(tmp_path):
+    reference = kld.collect_reference(get_tiny_qwen3(), _tokens(2 * SEQ_LEN), seq_len=SEQ_LEN)
+    reference.metadata = {"data": "wikitext2", "model": "tiny"}
+    path = tmp_path / "ref.pt"
+
+    kld.save_reference(reference, str(path))
+    loaded = kld.load_reference(str(path))
+
+    assert torch.equal(loaded.chunks, reference.chunks)
+    assert torch.equal(loaded.log_probs, reference.log_probs)
+    assert loaded.metadata == reference.metadata
+
+
+def _char_tokenizer(text, add_special_tokens):
+    assert not add_special_tokens
+    return {"input_ids": [ord(c) for c in text]}
+
+
+def test_load_eval_tokens_tokenizes_a_text_file_without_special_tokens(tmp_path):
     path = tmp_path / "eval.txt"
     path.write_text(" \n = Title = \n", encoding="utf-8")
 
-    assert kld.load_eval_tokens(tokenizer, str(path)).tolist() == [
+    assert kld.load_eval_tokens(_char_tokenizer, str(path)).tolist() == [
         ord(c) for c in " \n = Title = \n"
     ]
+
+
+def test_load_eval_tokens_draws_dataset_samples_until_long_enough(monkeypatch):
+    requested = []
+
+    def samples(name, num_samples, apply_chat_template, tokenizer):
+        requested.append(num_samples)
+        return ["abcd"] * num_samples
+
+    monkeypatch.setattr(kld, "get_dataset_samples", samples)
+
+    tokens = kld.load_eval_tokens(_char_tokenizer, "some-dataset", min_tokens=500)
+
+    assert requested == [64, 128]
+    assert tokens.numel() >= 500
