@@ -6,7 +6,8 @@ ModelOpt can usually quantize PyTorch models from the Hugging Face directly. By 
 
 If the model happens not using the ``nn.Linear`` for the linear layers, a customized Hugging Face plugin needs to be implemented to convert the model to use ``nn.Linear`` instead.
 
-The following is an example about how a customized Hugging Face model can be supported using modelopt:
+The following is an example about how a customized Hugging Face model can be supported using modelopt. It uses
+DBRX, which ModelOpt no longer supports out of the box, so this is also how you would add it back yourself:
 
 The `DBRX model <https://huggingface.co/databricks/dbrx-instruct>`_ is an MoE model with customized MoE linear implementation. The MoE layer in DBRX is implemented as a `DbrxExperts <https://github.com/databricks/dbrx/blob/main/model/modeling_dbrx.py>`_ module, where the three linear ops (w1, v1 and v2) are represented as ``nn.Parameter``. The linear op is forwarded as a pure ``matmul`` op.
 
@@ -18,7 +19,8 @@ As ModelOpt cannot detect these linear ops out-of-the-box, a HugggingFace plugin
 #. Try quantize the DBRX model after the plugin is implemented, feel free to follow the `hf_ptq example <https://github.com/NVIDIA/Model-Optimizer/tree/main/examples/hf_ptq>`_.
 #. Export the quantized model with :meth:`export_hf_checkpoint <modelopt.torch.export.unified_export_hf.export_hf_checkpoint>`. If the customized model is not supported by TensorRT-LLM, add support in its PyTorch backend and adapt the HF exporter if needed. See the :doc:`unified HF export guide <../deployment/3_unified_hf>` or :doc:`contact us <../support/1_contact>` for help.
 
-The following code snippet is excerpted from ``modelopt/torch/quantization/plugins/huggingface.py``
+The following code snippet implements the plugin. Write it in your own code and run it before quantizing; plugins
+shipped with ModelOpt live in ``modelopt/torch/quantization/plugins/huggingface.py``.
 
 .. code-block:: python
 

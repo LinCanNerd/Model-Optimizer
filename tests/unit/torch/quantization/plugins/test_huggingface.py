@@ -35,7 +35,6 @@ import modelopt.torch.quantization as mtq
 from modelopt.recipe.loader import load_recipe
 from modelopt.torch.quantization.nn import QuantLinear, QuantModuleRegistry, TensorQuantizer
 from modelopt.torch.quantization.plugins.huggingface import (
-    _DBRX_TRANSPOSED_EXPERTS,
     _QuantHFParallelLinear,
     _TransposedExpertsCalibMixin,
     get_homogeneous_hf_decoder_layers,
@@ -48,8 +47,6 @@ pytest.importorskip("transformers")
 import transformers
 from transformers import AutoModelForCausalLM, LlamaForCausalLM
 from transformers.integrations.finegrained_fp8 import FP8Linear
-from transformers.models.dbrx.configuration_dbrx import DbrxConfig
-from transformers.models.dbrx.modeling_dbrx import DbrxExpertGLU, DbrxExperts, DbrxFFN
 
 
 class HFModel(nn.Module):
@@ -151,50 +148,6 @@ def test_fp8_linear_per_tensor_dequant(monkeypatch):
     torch.testing.assert_close(
         module._dequantize_weight(torch.float32), module.weight.float() * 2.0
     )
-
-
-@pytest.mark.skipif(
-    Version(transformers.__version__) < Version("5.0"),
-    reason="test_dbrx is not supported for transformers<5.0",
-)
-def test_dbrx():
-    assert DbrxExperts in QuantModuleRegistry
-    assert DbrxExpertGLU in QuantModuleRegistry
-
-    # A dict ffn_config with both sizes is the form every transformers 5.x carries hidden_size through.
-    config = DbrxConfig(
-        ffn_config={"ffn_hidden_size": 8, "moe_num_experts": 2, "hidden_size": 32}, d_model=32
-    )
-
-    model_ref = DbrxFFN(config)
-    model_test = DbrxFFN(config)
-    with torch.no_grad():
-        model_ref.experts.mlp.w1.copy_(torch.randn(16, 32))
-        model_ref.experts.mlp.v1.copy_(torch.randn(16, 32))
-        model_ref.experts.mlp.w2.copy_(torch.randn(16, 32))
-
-    model_test.load_state_dict(model_ref.state_dict())
-
-    mtq.replace_quant_module(model_test)
-
-    expertglu_ref = model_ref.experts.mlp
-    expertglu_test = model_test.experts.mlp
-
-    assert hasattr(expertglu_test, "w1_linear") and not hasattr(expertglu_test, "w1")
-    assert hasattr(expertglu_test, "v1_linear") and not hasattr(expertglu_test, "v1")
-    assert hasattr(expertglu_test, "w2_linear") and not hasattr(expertglu_test, "w2")
-
-    # transformers 5.0-5.14 run the experts as x @ w1[i] (W = w1[i].T); 5.15+ as x @ w1[i].T.
-    w1 = [m.weight.T if _DBRX_TRANSPOSED_EXPERTS else m.weight for m in expertglu_test.w1_linear]
-    assert torch.allclose(torch.concat(w1, dim=0), expertglu_ref.w1)
-
-    mtq.set_quantizer_attributes_partial(model_test, "*", {"enable": False})
-
-    # With transposed experts the FFN input dimension is ffn_hidden_size, not hidden_size.
-    x = torch.randn(1, 4, 8 if _DBRX_TRANSPOSED_EXPERTS else 32)
-    out_1 = model_ref(x)
-    out_2 = model_test(x)
-    assert torch.allclose(out_1[0], out_2[0])
 
 
 @pytest.mark.skipif(

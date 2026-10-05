@@ -75,11 +75,6 @@ if TYPE_CHECKING:
 __all__ = ["register_hf_attentions_on_the_fly"]
 
 TRANSFORMERS_VERSION_GE_5_0 = version.parse(transformers.__version__) >= version.parse("5.0.0")
-# transformers 5.0-5.14 multiply DBRX expert weights transposed (``x @ w1[i]``); 4.x and 5.15+ use
-# the standard ``x @ w1[i].T``.
-_DBRX_TRANSPOSED_EXPERTS = TRANSFORMERS_VERSION_GE_5_0 and version.parse(
-    transformers.__version__
-) < version.parse("5.15")
 
 
 class _QuantAttention(QuantModule):
@@ -818,91 +813,6 @@ class _QuantLlama4TextExperts(_TransposedExpertsCalibMixin, QuantModule):
         return next_states
 
 
-# For more information on DbrxExpert, see https://github.com/huggingface/transformers/blob/dcdda532/src/transformers/models/dbrx/modeling_dbrx.py#L756
-class _QuantDbrxExperts(QuantModule):
-    def _setup(self):
-        """Modify the DbrxExpert."""
-        # No setup is needed for DbrxExpert, we only need to update DbrxExpertGLU
-
-    def forward(
-        self,
-        x: torch.Tensor,
-        top_experts: torch.LongTensor,
-        top_weights: torch.Tensor,
-    ) -> torch.Tensor:
-        bsz, q_len, hidden_size = x.shape
-        x = x.view(-1, hidden_size)
-        out = torch.zeros_like(x)
-
-        expert_mask = nn.functional.one_hot(top_experts, num_classes=self.num_experts).permute(
-            2, 1, 0
-        )
-        for expert_idx in range(self.num_experts):
-            topk_idx, token_idx = torch.where(expert_mask[expert_idx])
-            if token_idx.shape[0] == 0:
-                continue
-
-            token_list = token_idx.tolist()
-            topk_list = topk_idx.tolist()
-
-            expert_tokens = x[None, token_list].reshape(-1, hidden_size)
-            expert_out = (
-                self.mlp(expert_tokens, expert_idx) * top_weights[token_list, topk_list, None]
-            )
-
-            out.index_add_(0, token_idx, expert_out)
-
-        out = out.reshape(bsz, q_len, hidden_size)
-        return out
-
-
-class _QuantDbrxExpertGLU(QuantModule):
-    def _setup(self):
-        """Modify the DbrxExpertGLU by using nn.Linear layers."""
-        dtype, device = self.w1.dtype, self.w1.device
-
-        def _copy_weights(modules, weights):
-            modules.to(dtype=dtype, device=device)
-            for expert_idx, module in enumerate(modules):
-                with torch.no_grad():
-                    module.weight.copy_(weights[expert_idx].detach())
-
-        # F.linear(x, W) computes x @ W.T, so the standard orientation (gate = x @ w1[i].T,
-        # down = inter @ w2[i]) uses W = w1[i] and W = w2[i].T; transformers 5.0-5.14 swap both.
-        experts = (self.moe_num_experts, self.ffn_hidden_size, self.hidden_size)
-        in_proj = [w.view(experts) for w in (self.w1, self.v1)]
-        out_proj = self.w2.view(experts)
-        if _DBRX_TRANSPOSED_EXPERTS:
-            in_proj = [w.transpose(1, 2) for w in in_proj]
-        else:
-            out_proj = out_proj.transpose(1, 2)
-
-        def _make_linears(weights):
-            out_features, in_features = weights.shape[1:]
-            modules = nn.ModuleList(
-                [
-                    nn.Linear(in_features, out_features, bias=False)
-                    for _ in range(self.moe_num_experts)
-                ]
-            )
-            _copy_weights(modules, weights)
-            return modules
-
-        self.w1_linear = _make_linears(in_proj[0])
-        self.v1_linear = _make_linears(in_proj[1])
-        self.w2_linear = _make_linears(out_proj)
-        delattr(self, "w1")
-        delattr(self, "v1")
-        delattr(self, "w2")
-
-    def forward(self, x: torch.Tensor, expert_idx: int) -> torch.Tensor:
-        x1 = self.w1_linear[expert_idx](x)
-        x2 = self.v1_linear[expert_idx](x)
-        x1 = self.activation_fn(x1)
-        x1 = x1 * x2
-        return self.w2_linear[expert_idx](x1)
-
-
 class _QuantQwen3VLMoeTextExperts(QuantModule):
     """Quantized wrapper for the pre-transformers-5.12 ``Qwen3VLMoeTextExperts`` layout.
 
@@ -1189,27 +1099,6 @@ def _is_quant_fused_experts_module(module):
     return isinstance(module, _QuantFusedExperts)
 
 
-class _QuantDbrxFFN(_QuantSparseSequentialMoe):
-    @property
-    def num_experts(self):
-        return self.router.moe_num_experts
-
-    @property
-    def top_k(self):
-        # In older transformers, top_k was stored on DbrxRouter as moe_top_k.
-        # In transformers 5.0, DbrxFFN stores it as a plain attribute (top_k).
-        if hasattr(self.router, "moe_top_k"):
-            return self.router.moe_top_k
-        return self.__dict__.get("top_k", 1)
-
-    @top_k.setter
-    def top_k(self, value):
-        if hasattr(self.router, "moe_top_k"):
-            self.router.moe_top_k = value
-        else:
-            self.__dict__["top_k"] = value
-
-
 @contextmanager
 def patch_compressed_linear_loading():
     """Context manager that patches CompressedLinear to survive custom ``_init_weights`` calls.
@@ -1447,20 +1336,6 @@ except ImportError:
     pass
 
 try:
-    from transformers.models.dbrx.modeling_dbrx import DbrxExpertGLU, DbrxExperts, DbrxFFN
-
-    if DbrxExperts not in QuantModuleRegistry:
-        QuantModuleRegistry.register({DbrxExperts: "hf.DbrxExperts"})(_QuantDbrxExperts)
-
-    if DbrxExpertGLU not in QuantModuleRegistry:
-        QuantModuleRegistry.register({DbrxExpertGLU: "hf.DbrxExpertGLU"})(_QuantDbrxExpertGLU)
-
-    if DbrxFFN not in QuantModuleRegistry:
-        QuantModuleRegistry.register({DbrxFFN: "hf.DbrxFFN"})(_QuantDbrxFFN)
-except ImportError:
-    pass
-
-try:
     from transformers.models.falcon.modeling_falcon import FalconLinear
 
     if FalconLinear not in QuantModuleRegistry:
@@ -1606,18 +1481,6 @@ except ImportError:
     pass
 
 
-def register_dbrx_moe_on_the_fly(model):
-    """Register DBRX MoE modules as QUANT_MODULE.
-
-    The MoE class in DBRX is `transformers_modules.modeling_dbrx.DbrxExpertGLU`, which loads dynamically.
-    """
-    if type(model).__name__ == "DbrxForCausalLM":
-        moe_type = type(model.transformer.blocks[0].ffn.experts.mlp)
-        # Create a QuantDbrxExpertGLU class on the fly
-        if QuantModuleRegistry.get(moe_type) is None:
-            QuantModuleRegistry.register({moe_type: moe_type.__name__})(_QuantDbrxExpertGLU)
-
-
 def register_falcon_linears_on_the_fly(model):
     """Register Falcon linear modules as a QUANT_MODULE.
 
@@ -1709,7 +1572,7 @@ def _fused_experts_wrapper_class(module):
     * non-gated (``_QuantNonGatedFusedExperts``): a 3-D ``up_proj`` with no
       ``gate_proj`` and no ``gate_up_proj``. Matches NemotronH ``NemotronHExperts``.
 
-    Returns ``None`` for non-standard layouts (DBRX, GptOss, GraniteMoE,
+    Returns ``None`` for non-standard layouts (GptOss, GraniteMoE,
     Llama4TextExperts) which have their own explicit registrations.
 
     ``act_fn`` is not required: these wrappers only intercept the two ``F.linear``
@@ -2152,7 +2015,6 @@ def _reconstruct_fused_moe_linear(model: nn.Module) -> None:
 CUSTOM_MODEL_PLUGINS.update(
     [
         register_falcon_linears_on_the_fly,
-        register_dbrx_moe_on_the_fly,
         register_moe_linear_on_the_fly,
         register_fused_experts_on_the_fly,
         force_eager_experts_impl_on_the_fly,
