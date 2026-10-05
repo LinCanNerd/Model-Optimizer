@@ -17,7 +17,7 @@ python examples/llm_eval/kl_eval.py \
     --output kl_results.json
 ```
 
-This is a usage example, not a validated model/recipe result. The recipe includes NVFP4 weights and activations with FP8 KV-cache cast quantization. Other built-in PTQ recipe names or YAML paths can be supplied through `--recipe`.
+This model/recipe combination has been validated with the default evaluation settings. The recipe includes NVFP4 weights and activations with FP8 KV-cache cast quantization. Other built-in PTQ recipe names or YAML paths can be supplied through `--recipe`.
 
 - Evaluation uses 100 non-overlapping, 128-token windows from the tokenized WikiText-2-raw-v1 test split, selected with seed 0. Text is joined with blank lines and encoded without a chat template or added special tokens.
 - The BF16 model greedily generates up to 512 tokens per prompt, stopping at EOS. Both models then receive the identical prompt and continuation. Only the generated-token predictions, including EOS, contribute to the score.
