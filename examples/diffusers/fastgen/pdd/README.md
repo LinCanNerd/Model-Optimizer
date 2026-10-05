@@ -80,11 +80,15 @@ python examples/diffusers/fastgen/pdd/inference_qwen_image.py \
   --config examples/diffusers/fastgen/pdd/configs/qwen_image.yaml \
   --model-dir models/qwen_image_pdd_student \
   --transformer-dir /path/to/final-checkpoint/model/consolidated \
-  --blocks 32,32,32,32 \
+  --pdd-steps 4 \
   --prompt "a small red cube on a white table" \
   --seed 42 --height 1024 --width 1024 \
   --output pdd-qwen.png
 ```
+
+`--pdd-steps 4` divides the grid into four equal blocks of 32 intervals. The step count must be
+positive and divide `grid_size` evenly. Alternatively, use `--blocks 16,32,32,48` for an uneven
+schedule; `--blocks` and `--pdd-steps` cannot be used together.
 
 For an effectiveness or speed comparison, use identical prompts, seeds, resolution, dtype, and
 hardware for the original Qwen-Image baseline and PDD treatment. Warm up both paths before timing;

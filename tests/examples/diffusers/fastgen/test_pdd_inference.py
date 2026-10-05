@@ -20,6 +20,7 @@ from __future__ import annotations
 import pathlib
 import sys
 
+import pytest
 import torch
 from _test_utils.torch.diffusers_models import get_tiny_qwen_image_transformer
 from diffusers import QwenImageTransformer2DModel
@@ -29,7 +30,7 @@ _FASTGEN_DIR = _REPO_ROOT / "examples" / "diffusers" / "fastgen"
 if str(_FASTGEN_DIR) not in sys.path:
     sys.path.insert(0, str(_FASTGEN_DIR))
 
-from pdd.inference_qwen_image import _load_config, _parse_blocks
+from pdd.inference_qwen_image import _load_config, _parse_args, _parse_blocks
 
 from modelopt.torch.fastgen import PDDConfig, PDDOutputProjection
 from modelopt.torch.fastgen.plugins.qwen_image_pdd import (
@@ -68,7 +69,11 @@ def test_widened_diffusers_projection_restores_pdd_fusion_metadata(tmp_path) -> 
         torch.testing.assert_close(value, expected[name])
 
 
-def test_inference_block_override_is_validated(tmp_path) -> None:
+@pytest.mark.parametrize(
+    ("pdd_steps", "expected"),
+    [(None, (2, 2, 4)), (2, (4, 4)), (4, (2, 2, 2, 2)), (0, None), (-1, None), (3, None)],
+)
+def test_inference_block_override_is_validated(tmp_path, pdd_steps, expected) -> None:
     config_path = tmp_path / "config.yaml"
     config_path.write_text(
         "pdd:\n"
@@ -80,4 +85,18 @@ def test_inference_block_override_is_validated(tmp_path) -> None:
 
     blocks = _parse_blocks("2, 2,4")
     assert blocks == [2, 2, 4]
-    assert _load_config(config_path, blocks).inference_blocks == tuple(blocks)
+    if expected is None:
+        with pytest.raises(ValueError, match=r"--pdd-steps.*grid_size=8"):
+            _load_config(config_path, blocks, pdd_steps=pdd_steps)
+    else:
+        assert _load_config(config_path, blocks, pdd_steps=pdd_steps).inference_blocks == expected
+
+
+def test_inference_schedule_options_are_mutually_exclusive(monkeypatch, capsys) -> None:
+    argv = ["inference", "--model-dir", ".", "--prompt", "test", "--output", "test.png"]
+    argv += ["--blocks", "32,32,32,32", "--pdd-steps", "4"]
+    monkeypatch.setattr(sys, "argv", argv)
+    with pytest.raises(SystemExit) as error:
+        _parse_args()
+    assert error.value.code == 2
+    assert "not allowed with argument" in capsys.readouterr().err

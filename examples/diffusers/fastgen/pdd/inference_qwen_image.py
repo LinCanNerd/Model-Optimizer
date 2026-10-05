@@ -60,10 +60,16 @@ def _parse_args() -> argparse.Namespace:
         help="Trained Diffusers transformer; defaults to MODEL_DIR/transformer.",
     )
     parser.add_argument("--prompt", required=True)
-    parser.add_argument(
+    schedule = parser.add_mutually_exclusive_group()
+    schedule.add_argument(
         "--blocks",
         default="32,32,32,32",
         help="Comma-separated PDD block sizes; values must sum to grid_size.",
+    )
+    schedule.add_argument(
+        "--pdd-steps",
+        type=int,
+        help="Number of equal PDD blocks; must be positive and evenly divide grid_size.",
     )
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--height", type=int, default=1024)
@@ -84,9 +90,16 @@ def _parse_blocks(value: str) -> list[int]:
     return blocks
 
 
-def _load_config(path: Path, blocks: list[int]) -> PDDConfig:
+def _load_config(path: Path, blocks: list[int], *, pdd_steps: int | None = None) -> PDDConfig:
     raw = yaml.safe_load(path.read_text())
     values = dict(raw["pdd"])
+    if pdd_steps is not None:
+        grid_size = values.get("grid_size", PDDConfig().grid_size)
+        if pdd_steps <= 0 or grid_size % pdd_steps:
+            raise ValueError(
+                f"--pdd-steps must be positive and evenly divide grid_size={grid_size}."
+            )
+        blocks = [grid_size // pdd_steps] * pdd_steps
     values["inference_blocks"] = blocks
     return PDDConfig.model_validate(values)
 
@@ -113,8 +126,8 @@ def _decode(pipe: QwenImagePipeline, latents: torch.Tensor):
 @torch.inference_mode()
 def main() -> None:
     args = _parse_args()
-    blocks = _parse_blocks(args.blocks)
-    config = _load_config(args.config, blocks)
+    config = _load_config(args.config, _parse_blocks(args.blocks), pdd_steps=args.pdd_steps)
+    blocks = config.inference_blocks
     device = torch.device(args.device)
     transformer_dir = args.transformer_dir or args.model_dir / "transformer"
 
