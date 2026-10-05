@@ -63,7 +63,7 @@ supported combinations.
 | `iq2_xxs` | IQ2_XXS W2A16 (2.06 bpw), eligible linears | none | none (no calibration) |
 | `iq2_xs` | IQ2_XS W2A16 (2.31 bpw), eligible linears | none | none (no calibration) |
 | `iq2_s` | IQ2_S W2A16 (2.56 bpw), eligible linears | none | none (no calibration) |
-| `gdn_state_int8_dynamic` | GDN decode state INT8 + Hadamard; weights unchanged | none | none (dynamic scales; requires a prefix/decode phase context) |
+| `linear_attention_state_int8_dynamic` | GDN/KDA decode state INT8 + Hadamard; weights unchanged | none | none (dynamic scales; requires a prefix/decode phase context) |
 
 </details>
 
