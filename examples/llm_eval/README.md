@@ -6,11 +6,7 @@ The following instructions show how to evaluate the Model Optimizer quantized LL
 
 ## PyTorch KL evaluation prototype
 
-`kl_eval.py` compares an unquantized BF16 base model with a separately calibrated
-fake-quant copy. Supply a model and a fixed PTQ recipe; calibration reuses the
-`hf_ptq.py` workflow and stops before checkpoint export. Install ModelOpt and the
-[hf_ptq requirements](../hf_ptq/requirements.txt) as described in the
-[hf_ptq setup](../hf_ptq/README.md).
+`kl_eval.py` compares an unquantized BF16 base model with a separately calibrated fake-quant copy. Supply a model and a fixed PTQ recipe; calibration reuses the `hf_ptq.py` workflow and stops before checkpoint export. Install ModelOpt and the [hf_ptq requirements](../hf_ptq/requirements.txt) as described in the [hf_ptq setup](../hf_ptq/README.md).
 
 Run from the repository root:
 
@@ -21,45 +17,19 @@ python examples/llm_eval/kl_eval.py \
     --output kl_results.json
 ```
 
-This is a usage example, not a validated model/recipe result. The recipe includes
-NVFP4 weights and activations with FP8 KV-cache cast quantization. Other built-in
-PTQ recipe names or YAML paths can be supplied through `--recipe`.
+This is a usage example, not a validated model/recipe result. The recipe includes NVFP4 weights and activations with FP8 KV-cache cast quantization. Other built-in PTQ recipe names or YAML paths can be supplied through `--recipe`.
 
-- Evaluation uses 100 non-overlapping, 128-token windows from the tokenized
-  WikiText-2-raw-v1 test split, selected with seed 0. Text is joined with blank
-  lines and encoded without a chat template or added special tokens.
-- The BF16 model greedily generates up to 512 tokens per prompt, stopping at EOS.
-  Both models then receive the identical prompt and continuation. Only the
-  generated-token predictions, including EOS, contribute to the score.
-- Full-vocabulary KL is `KL(BF16 || fake-quant)` over all vocabulary tokens.
-  Conditional top-k KL selects the BF16 model's top 128 token IDs at each position
-  and separately normalizes both models over those same IDs. It excludes tail
-  mass and is not an approximation with an `OTHER` bucket.
-- Log-softmax and KL use FP32, in chunks of 32 positions. Each reported mean first
-  averages positions within an example, then averages the example scores equally.
-  Units are nats. Non-finite scores raise an error rather than being dropped.
-- The JSON contains both overall means, per-example scores and token counts,
-  prompt/continuation token IDs, and resolved recipe and run settings. Logits are
-  held for one example at a time and are not saved.
+- Evaluation uses 100 non-overlapping, 128-token windows from the tokenized WikiText-2-raw-v1 test split, selected with seed 0. Text is joined with blank lines and encoded without a chat template or added special tokens.
+- The BF16 model greedily generates up to 512 tokens per prompt, stopping at EOS. Both models then receive the identical prompt and continuation. Only the generated-token predictions, including EOS, contribute to the score.
+- Full-vocabulary KL is `KL(BF16 || fake-quant)` over all vocabulary tokens. Conditional top-k KL selects the BF16 model's top 128 token IDs at each position and separately normalizes both models over those same IDs. It excludes tail mass and is not an approximation with an `OTHER` bucket.
+- Log-softmax and KL use FP32, in chunks of 32 positions. Each reported mean first averages positions within an example, then averages the example scores equally. Units are nats. Non-finite scores raise an error rather than being dropped.
+- The JSON contains only the overall `full_vocab_kl` and `conditional_topk_kl` means by default. Add `--detailed_results` to save a report with `summary`, per-example scores and token counts, prompt/continuation token IDs, and resolved recipe and run settings. Logits are held for one example at a time and are not saved.
 
-Override evaluation settings with `--num_examples`, `--prompt_tokens`,
-`--max_new_tokens`, `--top_k`, and `--seed`. Calibration is separate from WikiText
-evaluation and inherits `hf_ptq.py` defaults: the CNN/DailyMail + Nemotron mixture,
-1,024 samples, maximum length 512, and automatic batch sizing. Override those with
-`--dataset`, `--calib_size`, `--calib_seq`, and `--batch_size`; these flags affect
-calibration only. Evaluation processes one prompt at a time.
+Override evaluation settings with `--num_examples`, `--prompt_tokens`, `--max_new_tokens`, `--top_k`, and `--seed`. Calibration is separate from WikiText evaluation and inherits `hf_ptq.py` defaults: the CNN/DailyMail + Nemotron mixture, 1,024 samples, maximum length 512, and automatic batch sizing. Override those with `--dataset`, `--calib_size`, `--calib_seq`, and `--batch_size`; these flags affect calibration only. Evaluation processes one prompt at a time.
 
-The default [Nemotron calibration dataset](https://huggingface.co/datasets/nvidia/Nemotron-Post-Training-Dataset-v2)
-is gated. Authenticate with a Hugging Face account that has access before running;
-if using an isolated `HF_HOME`, make the token available through `HF_TOKEN_PATH`.
+The default [Nemotron calibration dataset](https://huggingface.co/datasets/nvidia/Nemotron-Post-Training-Dataset-v2) is gated. Authenticate with a Hugging Face account that has access before running; if using an isolated `HF_HOME`, make the token available through `HF_TOKEN_PATH`.
 
-Run in one process with sufficient GPU memory for **two model copies**, calibration
-workspace, and one example's logits. The existing hf_ptq loader can place models
-across visible GPUs; `--gpu_max_mem_percentage` controls its budget. The initial
-prototype requires an unquantized BF16 checkpoint with text-only causal generation
-and calibration. AutoQuantize, layerwise export recipes, and distributed evaluation
-are excluded. `--trust_remote_code` is opt-in, and `--attn_implementation` is forwarded
-to the hf_ptq loader.
+Run in one process with sufficient GPU memory for **two model copies**, calibration workspace, and one example's logits. The existing hf_ptq loader can place models across visible GPUs; `--gpu_max_mem_percentage` controls its budget. The initial prototype requires an unquantized BF16 checkpoint with text-only causal generation and calibration. AutoQuantize, layerwise export recipes, and distributed evaluation are excluded. `--trust_remote_code` is opt-in, and `--attn_implementation` is forwarded to the hf_ptq loader.
 
 ## NeMo Evaluator
 

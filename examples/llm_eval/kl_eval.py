@@ -78,8 +78,12 @@ def score_continuation(reference, quantized, token_ids, prompt_tokens, top_k=128
 
 
 @torch.inference_mode()
-def evaluate(reference, quantized, tokenizer, prompts, max_new_tokens=512, top_k=128):
-    """Generate greedily with BF16, then replay identical prefixes through both models."""
+def evaluate(
+    reference, quantized, tokenizer, prompts, max_new_tokens=512, top_k=128, detailed_results=False
+):
+    """Return overall KL means, optionally with per-example details, on shared BF16 continuations."""
+    if not prompts:
+        raise ValueError("No evaluation prompts.")
     reference.eval()
     quantized.eval()
     eos = reference.generation_config.eos_token_id
@@ -93,6 +97,7 @@ def evaluate(reference, quantized, tokenizer, prompts, max_new_tokens=512, top_k
         pad_token_id=tokenizer.pad_token_id,
         use_cache=True,
     )
+    totals = {"full_vocab_kl": 0.0, "conditional_topk_kl": 0.0}
     results = []
     for index, prompt in enumerate(prompts):
         inputs = torch.tensor(
@@ -109,26 +114,24 @@ def evaluate(reference, quantized, tokenizer, prompts, max_new_tokens=512, top_k
             )
         finally:
             reference.generation_config = model_generation
-        generated = sequence[0, inputs.shape[1] :].cpu().tolist()
+        generated_tokens = sequence.shape[1] - inputs.shape[1]
         metrics = score_continuation(reference, quantized, sequence, inputs.shape[1], top_k)
-        results.append(
-            {
-                "example": index,
-                "block_index": prompt["block_index"],
-                "prompt_ids": prompt["input_ids"],
-                "generated_ids": generated,
-                "generated_tokens": len(generated),
-                **metrics,
-            }
-        )
-        print(f"{index + 1}/{len(prompts)}: {len(generated)} tokens; {metrics}", flush=True)
-    if not results:
-        raise ValueError("No evaluation prompts.")
-    summary = {
-        name: sum(row[name] for row in results) / len(results)
-        for name in ("full_vocab_kl", "conditional_topk_kl")
-    }
-    return {"summary": summary, "examples": results}
+        for name, value in metrics.items():
+            totals[name] += value
+        if detailed_results:
+            results.append(
+                {
+                    "example": index,
+                    "block_index": prompt["block_index"],
+                    "prompt_ids": prompt["input_ids"],
+                    "generated_ids": sequence[0, inputs.shape[1] :].cpu().tolist(),
+                    "generated_tokens": generated_tokens,
+                    **metrics,
+                }
+            )
+        print(f"{index + 1}/{len(prompts)}: {generated_tokens} tokens; {metrics}", flush=True)
+    summary = {name: total / len(prompts) for name, total in totals.items()}
+    return {"summary": summary, "examples": results} if detailed_results else summary
 
 
 def _wikitext_prompts(tokenizer, num_examples, prompt_tokens, seed):
@@ -159,6 +162,11 @@ def _parse_args():
     parser.add_argument("--top_k", type=int, default=128)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--output", type=Path, default=Path("kl_results.json"))
+    parser.add_argument(
+        "--detailed_results",
+        action="store_true",
+        help="Include per-example scores, token counts, token IDs, and run settings in JSON.",
+    )
     # None preserves hf_ptq's defaults instead of duplicating them here.
     parser.add_argument("--dataset", help="Calibration dataset; defaults to hf_ptq's mixture.")
     parser.add_argument("--calib_size", help="hf_ptq calibration sample counts.")
@@ -250,37 +258,46 @@ def main():
     ):
         raise ValueError("The recipe must use fake quantization, not packed quantized weights.")
     set_seed(args.seed)
-    report = evaluate(reference, quantized, tokenizer, prompts, args.max_new_tokens, args.top_k)
-    report["settings"] = {
-        "model": args.model,
-        "model_revision": getattr(reference.config, "_commit_hash", None),
-        "recipe": args.recipe,
-        "resolved_recipe": recipe.model_dump(mode="json"),
-        "backend": "pytorch",
-        "torch_version": torch.__version__,
-        "model_dtype": "bfloat16",
-        "metric_dtype": "float32",
-        "kl_direction": "reference_to_quantized",
-        "units": "nats",
-        "aggregation": "mean_tokens_per_example_then_mean_examples",
-        "evaluation_dataset": "Salesforce/wikitext/wikitext-2-raw-v1/test",
-        "dataset_fingerprint": fingerprint,
-        "num_examples": args.num_examples,
-        "prompt_tokens": args.prompt_tokens,
-        "max_new_tokens": args.max_new_tokens,
-        "top_k": args.top_k,
-        "seed": args.seed,
-        "generation": "greedy_until_eos_or_token_cap",
-        "calibration_dataset": ptq_args.dataset,
-        "calibration_samples": ptq_args.calib_size,
-        "calibration_seq_length": ptq_args.calib_seq,
-        "calibration_batch_size": ptq_args.batch_size,
-        "calibration_seed": hf_ptq.RAND_SEED,
-        "attention_implementation": args.attn_implementation,
-    }
+    report = evaluate(
+        reference,
+        quantized,
+        tokenizer,
+        prompts,
+        args.max_new_tokens,
+        args.top_k,
+        detailed_results=args.detailed_results,
+    )
+    if args.detailed_results:
+        report["settings"] = {
+            "model": args.model,
+            "model_revision": getattr(reference.config, "_commit_hash", None),
+            "recipe": args.recipe,
+            "resolved_recipe": recipe.model_dump(mode="json"),
+            "backend": "pytorch",
+            "torch_version": torch.__version__,
+            "model_dtype": "bfloat16",
+            "metric_dtype": "float32",
+            "kl_direction": "reference_to_quantized",
+            "units": "nats",
+            "aggregation": "mean_tokens_per_example_then_mean_examples",
+            "evaluation_dataset": "Salesforce/wikitext/wikitext-2-raw-v1/test",
+            "dataset_fingerprint": fingerprint,
+            "num_examples": args.num_examples,
+            "prompt_tokens": args.prompt_tokens,
+            "max_new_tokens": args.max_new_tokens,
+            "top_k": args.top_k,
+            "seed": args.seed,
+            "generation": "greedy_until_eos_or_token_cap",
+            "calibration_dataset": ptq_args.dataset,
+            "calibration_samples": ptq_args.calib_size,
+            "calibration_seq_length": ptq_args.calib_seq,
+            "calibration_batch_size": ptq_args.batch_size,
+            "calibration_seed": hf_ptq.RAND_SEED,
+            "attention_implementation": args.attn_implementation,
+        }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2, allow_nan=False) + "\n")
-    print(json.dumps(report["summary"], indent=2))
+    print(json.dumps(report["summary"] if args.detailed_results else report, indent=2))
     print(f"Results written to {args.output}")
 
 

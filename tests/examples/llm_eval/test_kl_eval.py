@@ -18,6 +18,7 @@
 import copy
 import importlib
 import math
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -87,7 +88,13 @@ def test_scores_all_and_only_continuation_predictions(kl_eval):
     assert actual["full_vocab_kl"] == pytest.approx(expected, abs=1e-6)
 
 
-def test_real_generation_stops_at_eos_and_scores_it(kl_eval):
+@pytest.mark.parametrize("detailed_results", [False, True])
+def test_real_generation_stops_at_eos_and_scores_it(kl_eval, monkeypatch, detailed_results):
+    argv = ["kl_eval.py", "--model", "local-test-model", "--recipe", "local-test-recipe"]
+    if detailed_results:
+        argv.append("--detailed_results")
+    monkeypatch.setattr(sys, "argv", argv)
+    args = kl_eval._parse_args()
     reference = _tiny_model()
     with torch.no_grad():
         for parameter in reference.parameters():
@@ -100,13 +107,31 @@ def test_real_generation_stops_at_eos_and_scores_it(kl_eval):
     quantized = copy.deepcopy(reference)
     tokenizer = SimpleNamespace(eos_token_id=0, pad_token_id=0)
     prompts = [{"block_index": 3, "input_ids": [4, 5, 6]}]
-    result = kl_eval.evaluate(reference, quantized, tokenizer, prompts, max_new_tokens=4, top_k=4)
-    assert result["examples"][0]["generated_ids"] == [0]
-    assert result["examples"][0]["generated_tokens"] == 1
-    assert reference.generation_config == original_generation
-    assert result["summary"] == pytest.approx(
-        {"full_vocab_kl": 0, "conditional_topk_kl": 0}, abs=1e-7
+    result = kl_eval.evaluate(
+        reference,
+        quantized,
+        tokenizer,
+        prompts,
+        max_new_tokens=4,
+        top_k=4,
+        detailed_results=args.detailed_results,
     )
+    assert reference.generation_config == original_generation
+    expected = {"full_vocab_kl": 0, "conditional_topk_kl": 0}
+    if detailed_results:
+        assert result["examples"] == [
+            {
+                "example": 0,
+                "block_index": 3,
+                "prompt_ids": [4, 5, 6],
+                "generated_ids": [0],
+                "generated_tokens": 1,
+                **expected,
+            }
+        ]
+        assert result["summary"] == pytest.approx(expected, abs=1e-7)
+    else:
+        assert result == pytest.approx(expected, abs=1e-7)
 
 
 def test_invalid_logits_fail_instead_of_dropping_positions(kl_eval):
