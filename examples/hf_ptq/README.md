@@ -610,11 +610,7 @@ the recipe above with `general/auto_quantize/nvfp4_fp8_at_5p4bits` and add
 `rank<N>.pth`; resume with the same model, recipe, data, and parallelism configuration.
 Keep `--batch_size` explicit: gradient scoring runs both forward and backward passes.
 
-Qwen checkpoints with `model_type` `qwen3_5` or `qwen3_5_moe` support this path for
-**text-only calibration**. The loader retains the conditional-generation architecture and
-vision tower, but `--calib_with_images` remains unsupported with FSDP2. During mixed-format
-export, linear-attention QKV/Z and B/A projections retain their separate runtime-fusion
-groups. Weight AutoQuantize with FSDP2 remains experimental; KV-cache AutoQuantize is not
+Weight AutoQuantize with FSDP2 remains experimental; KV-cache AutoQuantize is not
 supported on this path.
 
 > *Performance Note: FSDP2 is designed for training workloads and may result in longer calibration and export times. For faster calibration, maximize the batch size based on available GPU memory and choose the right number of GPUs to avoid unnecessary communication.*
@@ -730,7 +726,7 @@ from modelopt.torch.export.trtllm import export_tensorrt_llm_checkpoint
 with torch.inference_mode():
     export_tensorrt_llm_checkpoint(
         model,  # The quantized model.
-        decoder_type,  # The type of the model, e.g gpt, gptj, or llama.
+        decoder_type,  # The TensorRT-LLM model type, e.g gpt, gptj, or llama. Detected from the model class if None.
         dtype,  # The exported weights data type.
         export_dir,  # The directory where the exported files will be stored.
         inference_tensor_parallel,  # The number of GPUs used in the inference time tensor parallel.
