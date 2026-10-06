@@ -257,7 +257,7 @@ class MGDLoss(Loss):
         masked_feats = torch.mul(out_s, mat)
         new_feats = self.generation(masked_feats)
 
-        kd_loss = F.mse_loss(new_feats, out_t)
+        kd_loss = F.mse_loss(new_feats, out_t.detach())
 
         return kd_loss
 

@@ -80,6 +80,25 @@ def test_distillation_model_loss_params():
     assert next(kd_loss.parameters()).dtype == torch.float16
 
 
+def test_mgd_loss_does_not_backprop_into_teacher():
+    teacher_layer = nn.Conv2d(3, 48, 1)
+    out_s = torch.randn(2, 32, 8, 8, requires_grad=True)
+    out_t = teacher_layer(torch.randn(2, 3, 8, 8))
+
+    mtd.MGDLoss(32, 48)(out_s, out_t).backward()
+
+    assert out_s.grad is not None
+    assert teacher_layer.weight.grad is None
+
+
+def test_loss_balancer_requires_forward():
+    class NoForwardBalancer(mtd.DistillationLossBalancer):
+        pass
+
+    with pytest.raises(TypeError, match="abstract"):
+        NoForwardBalancer()
+
+
 def test_distillation_model_no_balancer():
     student = tiny_mobilenet().train()
     config = {
