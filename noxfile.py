@@ -48,10 +48,11 @@ TORCH_VERSIONS = {
 TRANSFORMERS_VERSIONS = {
     "tf_latest": ("transformers~=5.14.0",),
     # transformers 4.57 caps ``huggingface_hub<1.0``, but ``diffusers>=0.40`` requires
-    # ``huggingface_hub>=1.23``. Bound diffusers to a hub<1.0-compatible release so this env
-    # stays internally consistent; otherwise diffusers' pipeline import fails and diffusers
-    # models silently misroute to the LLM path on export.
-    "tf_min": ("transformers~=4.57.0", "diffusers<0.40"),
+    # ``huggingface_hub>=1.23`` and ``datasets>=5.1`` requires ``huggingface_hub>=1.31``.
+    # Bound both to hub<1.0-compatible releases so this env stays internally consistent;
+    # otherwise diffusers' pipeline import fails and diffusers models silently misroute to
+    # the LLM path on export, and ``import datasets`` fails outright.
+    "tf_min": ("transformers~=4.57.0", "diffusers<0.40", "datasets<5.1"),
 }
 
 
