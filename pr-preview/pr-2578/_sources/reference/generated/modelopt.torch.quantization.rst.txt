@@ -53,6 +53,10 @@ quantization
 
 
 
+   modelopt.torch.quantization.linear_attention
+
+
+
    modelopt.torch.quantization.mode
 
 

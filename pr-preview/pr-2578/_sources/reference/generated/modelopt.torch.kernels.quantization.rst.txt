@@ -29,6 +29,10 @@ quantization
 
 
 
+   modelopt.torch.kernels.quantization.linear_attention
+
+
+
 
 .. Autodoc anything defined in the module itself
 

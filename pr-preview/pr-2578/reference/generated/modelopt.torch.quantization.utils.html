@@ -2,7 +2,7 @@
 <html lang="en" data-accent-color="green" data-content_root="../../">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"><title>utils - Model Optimizer 0.0.1.dev1+g33b66382d</title><link rel="index" title="Index" href="../../genindex.html" /><link rel="search" title="Search" href="../../search.html" /><link rel="next" title="sparsity" href="modelopt.torch.sparsity.html" /><link rel="prev" title="tensor_quant" href="modelopt.torch.quantization.tensor_quant.html" /><script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"><title>utils - Model Optimizer 0.0.1.dev1+gaa8ee4413</title><link rel="index" title="Index" href="../../genindex.html" /><link rel="search" title="Search" href="../../search.html" /><link rel="next" title="sparsity" href="modelopt.torch.sparsity.html" /><link rel="prev" title="tensor_quant" href="modelopt.torch.quantization.tensor_quant.html" /><script>
     function setColorMode(t){let e=document.documentElement;e.setAttribute("data-color-mode",t);let a=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches,s=t;"auto"===t&&(s=a?"dark":"light"),"light"===s?(e.classList.remove("dark"),e.classList.add("light")):(e.classList.remove("light"),e.classList.add("dark"))}
     setColorMode(localStorage._theme||"auto");
   </script><link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=e1a1ceaf" />
@@ -309,6 +309,7 @@ data-aria-dark="Switch to auto color mode">
 <li class="toctree-l4"><a class="reference internal" href="modelopt.torch.quantization.extensions.html">extensions</a></li>
 <li class="toctree-l4"><a class="reference internal" href="modelopt.torch.quantization.ggml.html">ggml</a></li>
 <li class="toctree-l4"><a class="reference internal" href="modelopt.torch.quantization.kv_cache_auto_quant.html">kv_cache_auto_quant</a></li>
+<li class="toctree-l4"><a class="reference internal" href="modelopt.torch.quantization.linear_attention.html">linear_attention</a></li>
 <li class="toctree-l4"><a class="reference internal" href="modelopt.torch.quantization.mode.html">mode</a></li>
 <li class="toctree-l4"><a class="reference internal" href="modelopt.torch.quantization.model_calib.html">model_calib</a></li>
 <li class="toctree-l4"><a class="reference internal" href="modelopt.torch.quantization.model_quant.html">model_quant</a></li>
@@ -1106,13 +1107,14 @@ typically <code class="docutils literal notranslate"><span class="pre">some_kv_c
 <dt class="sig sig-object py" id="modelopt.torch.quantization.utils.weight_attr_names">
 <span class="sig-name descname"><span class="pre">weight_attr_names</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">module</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modelopt.torch.quantization.utils.weight_attr_names" title="Link to this definition">#</a></dt>
 <dd><p>Get the weight param attribute names in a converted module, non-recursive.</p>
-<p>Covers three layouts:</p>
+<p>Covers four layouts:</p>
 <ul class="simple">
 <li><p>standard <code class="docutils literal notranslate"><span class="pre">nn.Linear</span></code>: <code class="docutils literal notranslate"><span class="pre">weight</span></code> + <code class="docutils literal notranslate"><span class="pre">weight_quantizer</span></code>.</p></li>
 <li><p>custom per-weight quantizer (e.g. <code class="docutils literal notranslate"><span class="pre">Llama4TextExperts</span></code> with <code class="docutils literal notranslate"><span class="pre">gate_up_proj</span></code> +
 <code class="docutils literal notranslate"><span class="pre">gate_up_proj_weight_quantizer</span></code>).</p></li>
 <li><p>fused-experts <code class="docutils literal notranslate"><span class="pre">nn.ModuleList</span></code> quantizers (<code class="docutils literal notranslate"><span class="pre">_QuantFusedExperts</span></code> with
 <code class="docutils literal notranslate"><span class="pre">&lt;first_proj&gt;</span></code> + <code class="docutils literal notranslate"><span class="pre">&lt;first_proj&gt;_weight_quantizers</span></code> plural list).</p></li>
+<li><p>TEGroupedLinear: <code class="docutils literal notranslate"><span class="pre">weight0..N</span></code> behind one <code class="docutils literal notranslate"><span class="pre">GroupedQuantizer</span></code>, reported as <code class="docutils literal notranslate"><span class="pre">weight</span></code>.</p></li>
 </ul>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>

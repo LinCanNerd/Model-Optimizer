@@ -2,7 +2,7 @@
 <html lang="en" data-accent-color="green" data-content_root="../">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Changelog - Model Optimizer 0.0.1.dev1+g33b66382d</title><link rel="index" title="Index" href="../genindex.html" /><link rel="search" title="Search" href="../search.html" /><link rel="next" title="modelopt API" href="1_modelopt_api.html" /><link rel="prev" title="All GitHub Examples" href="../examples/0_all_examples.html" /><script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Changelog - Model Optimizer 0.0.1.dev1+gaa8ee4413</title><link rel="index" title="Index" href="../genindex.html" /><link rel="search" title="Search" href="../search.html" /><link rel="next" title="modelopt API" href="1_modelopt_api.html" /><link rel="prev" title="All GitHub Examples" href="../examples/0_all_examples.html" /><script>
     function setColorMode(t){let e=document.documentElement;e.setAttribute("data-color-mode",t);let a=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches,s=t;"auto"===t&&(s=a?"dark":"light"),"light"===s?(e.classList.remove("dark"),e.classList.add("light")):(e.classList.remove("light"),e.classList.add("dark"))}
     setColorMode(localStorage._theme||"auto");
   </script><link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=e1a1ceaf" />
@@ -309,6 +309,7 @@ data-aria-dark="Switch to auto color mode">
 <li class="toctree-l4"><a class="reference internal" href="generated/modelopt.torch.quantization.extensions.html">extensions</a></li>
 <li class="toctree-l4"><a class="reference internal" href="generated/modelopt.torch.quantization.ggml.html">ggml</a></li>
 <li class="toctree-l4"><a class="reference internal" href="generated/modelopt.torch.quantization.kv_cache_auto_quant.html">kv_cache_auto_quant</a></li>
+<li class="toctree-l4"><a class="reference internal" href="generated/modelopt.torch.quantization.linear_attention.html">linear_attention</a></li>
 <li class="toctree-l4"><a class="reference internal" href="generated/modelopt.torch.quantization.mode.html">mode</a></li>
 <li class="toctree-l4"><a class="reference internal" href="generated/modelopt.torch.quantization.model_calib.html">model_calib</a></li>
 <li class="toctree-l4"><a class="reference internal" href="generated/modelopt.torch.quantization.model_quant.html">model_quant</a></li>
@@ -391,30 +392,30 @@ data-aria-dark="Switch to auto color mode">
 <li><a class="reference internal" href="#id2">0.46.0 (2026-08-18)</a></li>
 <li><a class="reference internal" href="#id3">0.45.0 (2026-07-06)</a></li>
 <li><a class="reference internal" href="#id6">0.44.0 (2026-05-13)</a></li>
-<li><a class="reference internal" href="#id8">0.43.0 (2026-04-16)</a></li>
-<li><a class="reference internal" href="#id10">0.42.0 (2026-03-09)</a></li>
-<li><a class="reference internal" href="#id13">0.41.0 (2026-01-20)</a></li>
-<li><a class="reference internal" href="#id14">0.40.0 (2025-12-12)</a></li>
-<li><a class="reference internal" href="#id16">0.39.0 (2025-11-13)</a></li>
-<li><a class="reference internal" href="#id17">0.37.0 (2025-10-08)</a></li>
-<li><a class="reference internal" href="#id19">0.35.1 (2025-09-20)</a></li>
-<li><a class="reference internal" href="#id20">0.35.0 (2025-09-04)</a></li>
-<li><a class="reference internal" href="#id21">0.33.1 (2025-08-12)</a></li>
-<li><a class="reference internal" href="#id22">0.33.0 (2025-07-14)</a></li>
-<li><a class="reference internal" href="#id23">0.31.0 (2025-06-05)</a></li>
-<li><a class="reference internal" href="#id24">0.29.0 (2025-05-09)</a></li>
-<li><a class="reference internal" href="#id25">0.27.1 (2025-04-15)</a></li>
-<li><a class="reference internal" href="#id26">0.27.0 (2025-04-03)</a></li>
-<li><a class="reference internal" href="#id27">0.25.0 (2025-03-03)</a></li>
-<li><a class="reference internal" href="#id28">0.23.2 (2025-02-19)</a></li>
-<li><a class="reference internal" href="#id29">0.23.1 (2025-02-14)</a></li>
-<li><a class="reference internal" href="#id30">0.23.0 (2025-01-29)</a></li>
-<li><a class="reference internal" href="#id31">0.21.0 (2024-12-03)</a></li>
-<li><a class="reference internal" href="#id32">0.19.0 (2024-10-23)</a></li>
-<li><a class="reference internal" href="#id33">0.17.0 (2024-09-11)</a></li>
-<li><a class="reference internal" href="#id34">0.15.0 (2024-07-25)</a></li>
-<li><a class="reference internal" href="#id35">0.13.0 (2024-06-14)</a></li>
-<li><a class="reference internal" href="#id37">0.11.0 (2024-05-07)</a></li>
+<li><a class="reference internal" href="#id9">0.43.0 (2026-04-16)</a></li>
+<li><a class="reference internal" href="#id11">0.42.0 (2026-03-09)</a></li>
+<li><a class="reference internal" href="#id14">0.41.0 (2026-01-20)</a></li>
+<li><a class="reference internal" href="#id15">0.40.0 (2025-12-12)</a></li>
+<li><a class="reference internal" href="#id17">0.39.0 (2025-11-13)</a></li>
+<li><a class="reference internal" href="#id18">0.37.0 (2025-10-08)</a></li>
+<li><a class="reference internal" href="#id20">0.35.1 (2025-09-20)</a></li>
+<li><a class="reference internal" href="#id21">0.35.0 (2025-09-04)</a></li>
+<li><a class="reference internal" href="#id22">0.33.1 (2025-08-12)</a></li>
+<li><a class="reference internal" href="#id23">0.33.0 (2025-07-14)</a></li>
+<li><a class="reference internal" href="#id24">0.31.0 (2025-06-05)</a></li>
+<li><a class="reference internal" href="#id25">0.29.0 (2025-05-09)</a></li>
+<li><a class="reference internal" href="#id26">0.27.1 (2025-04-15)</a></li>
+<li><a class="reference internal" href="#id27">0.27.0 (2025-04-03)</a></li>
+<li><a class="reference internal" href="#id28">0.25.0 (2025-03-03)</a></li>
+<li><a class="reference internal" href="#id29">0.23.2 (2025-02-19)</a></li>
+<li><a class="reference internal" href="#id30">0.23.1 (2025-02-14)</a></li>
+<li><a class="reference internal" href="#id31">0.23.0 (2025-01-29)</a></li>
+<li><a class="reference internal" href="#id32">0.21.0 (2024-12-03)</a></li>
+<li><a class="reference internal" href="#id33">0.19.0 (2024-10-23)</a></li>
+<li><a class="reference internal" href="#id34">0.17.0 (2024-09-11)</a></li>
+<li><a class="reference internal" href="#id35">0.15.0 (2024-07-25)</a></li>
+<li><a class="reference internal" href="#id36">0.13.0 (2024-06-14)</a></li>
+<li><a class="reference internal" href="#id38">0.11.0 (2024-05-07)</a></li>
 </ul>
 </div><div id="ethical-ad-placement" data-ea-publisher="readthedocs"></div></div>
   </aside>
@@ -457,6 +458,7 @@ data-aria-dark="Switch to auto color mode">
 </ul>
 <p><em>Quantization</em></p>
 <ul class="simple">
+<li><p>Backfill checkpoint aliases for nine more published NVFP4 releases, so each is reachable from its source model’s hub path: <code class="docutils literal notranslate"><span class="pre">zai-org/GLM-5.1</span></code> and <code class="docutils literal notranslate"><span class="pre">GLM-5.2</span></code>, <code class="docutils literal notranslate"><span class="pre">MiniMaxAI/MiniMax-M2.5</span></code> and <code class="docutils literal notranslate"><span class="pre">MiniMax-M3</span></code>, <code class="docutils literal notranslate"><span class="pre">deepseek-ai/DeepSeek-V3.1</span></code> and <code class="docutils literal notranslate"><span class="pre">DeepSeek-V3.2</span></code>, <code class="docutils literal notranslate"><span class="pre">Qwen/Qwen3-235B-A22B-Instruct-2507</span></code> and <code class="docutils literal notranslate"><span class="pre">-Thinking-2507</span></code>, and <code class="docutils literal notranslate"><span class="pre">Qwen/Qwen3.6-27B</span></code>. Each imports an existing general or architecture recipe wholesale rather than copying its body.</p></li>
 <li><p>Add composed Hugging Face AutoQuantize recipes that run fixed PTQ or weight AutoQuantize before
 a separate KV-cache AutoQuantize stage, with independent resumable checkpoints for the weight and
 KV searches. Uniform-weight plus layer-wise mixed-KV exports are marked unsupported for deployment
@@ -471,6 +473,12 @@ until a runtime consumes that metadata combination.</p></li>
 <li><p>Add support for quantizing and calibrating enabled operators outside the transformer layers, such as <code class="docutils literal notranslate"><span class="pre">lm_head</span></code>, when using layerwise calibration.</p></li>
 <li><p>Add an end-to-end BEVFormer ONNX PTQ example with temporal calibration data generation, INT8 and FP8 quantization, TensorRT engine building, and nuScenes accuracy evaluation. See <a class="reference external" href="https://github.com/NVIDIA/Model-Optimizer/tree/main/examples/onnx_ptq/bevformer" rel="noopener noreferrer" target="_blank">examples/onnx_ptq/bevformer/README.md</a> for details.</p></li>
 <li><p>Add a reusable local-Hessian NVFP4 PTQ recipe and the quantization recipe used for <code class="docutils literal notranslate"><span class="pre">nvidia/Qwen3.8-27B-NVFP4</span></code>.</p></li>
+<li><p>Add experimental dynamic FP8 fake quantization of GatedDeltaNet chunk-boundary states and WY activations for training through the standard <code class="docutils literal notranslate"><span class="pre">quant_cfg</span></code> interface. The fused GDN path requires <code class="docutils literal notranslate"><span class="pre">fla-core==0.5.1</span></code> and chunk size 64; state emulation requires SM89 or newer.</p></li>
+<li><p>Add fake quantization of the sparse-attention indexer key cache and query for DeepSeek-V4 (vLLM and Megatron-Core) and GLM-5.3-Flash (vLLM) through the new <code class="docutils literal notranslate"><span class="pre">indexer_k_quantizer</span></code> and <code class="docutils literal notranslate"><span class="pre">indexer_q_quantizer</span></code>. Enable them by importing the <code class="docutils literal notranslate"><span class="pre">configs/ptq/units/indexer_k_nvfp4</span></code> and <code class="docutils literal notranslate"><span class="pre">configs/ptq/units/indexer_q_nvfp4</span></code> units (NVFP4 with the global scale fixed to 1) into a recipe.</p></li>
+<li><p>Add the <code class="docutils literal notranslate"><span class="pre">configs/ptq/units/kv_nvfp4_mla</span></code> recipe unit for fake quantization of the MLA KV cache (DeepSeek-V3, GLM-5.3-Flash, …) in vLLM fake-quant serving: NVFP4 for the latent and FP8 for the RoPE key. See <a class="reference external" href="https://github.com/NVIDIA/Model-Optimizer/tree/main/examples/vllm_serve" rel="noopener noreferrer" target="_blank">examples/vllm_serve/README.md</a> for an example recipe.</p></li>
+<li><p>vLLM fake-quant serving now runs on pre-quantized checkpoints such as FP8 when the recipe leaves those layers unquantized (for example a KV-cache-only recipe), and on MLA models with an FP8 KV cache; both previously failed during quantization.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">KV_QUANT_CFG</span></code> presets in vLLM fake-quant serving now quantize the MLA KV cache; on vLLM 0.16 and later they silently quantized nothing for MLA models.</p></li>
+<li><p>vLLM fake-quant serving of NVFP4 and cast-mode KV-cache configs no longer needs <code class="docutils literal notranslate"><span class="pre">--enforce-eager</span></code>. <code class="docutils literal notranslate"><span class="pre">examples/vllm_serve/vllm_serve_fakequant.py</span></code> now sets <code class="docutils literal notranslate"><span class="pre">VLLM_DISABLE_COMPILE_CACHE=1</span></code> by default, because a cached torch.compile graph of the same model without the fake quant would otherwise be reused.</p></li>
 </ul>
 <p><em>Speculative Decoding</em></p>
 <ul class="simple">
@@ -478,8 +486,11 @@ until a runtime consumes that metadata combination.</p></li>
 </ul>
 <p><em>Megatron Framework (M-LM / M-Bridge)</em></p>
 <ul class="simple">
+<li><p>Add optional Top-P (nucleus) truncation to the Megatron top-k logits KD loss (now <code class="docutils literal notranslate"><span class="pre">TopLogitsKLLoss</span></code>) via <code class="docutils literal notranslate"><span class="pre">logit_kl_top_p</span></code> and <code class="docutils literal notranslate"><span class="pre">logit_kl_top_p_min_k</span></code> in <code class="docutils literal notranslate"><span class="pre">DistillationConfig</span></code>: after the global Top-K selection, only the smallest prefix whose cumulative teacher probability reaches <code class="docutils literal notranslate"><span class="pre">top_p</span></code> (with a floor of <code class="docutils literal notranslate"><span class="pre">min_k</span></code> entries) contributes to the KL, mirroring <code class="docutils literal notranslate"><span class="pre">--logits-save-top-p</span></code> / <code class="docutils literal notranslate"><span class="pre">--logits-save-top-p-min-k</span></code> in Megatron-LM’s logits saver.</p></li>
 <li><p>Add an end-to-end W4A4 NVFP4 PTQ and QAD tutorial for Qwen3.6-35B-A3B also covering evaluation and vLLM throughput benchmarking. See <a class="reference external" href="https://github.com/NVIDIA/Model-Optimizer/tree/main/examples/megatron_bridge/tutorials/Qwen3.6-35B-A3B/" rel="noopener noreferrer" target="_blank">examples/megatron_bridge/tutorials/Qwen3.6-35B-A3B/README.md</a> for details.</p></li>
 <li><p>Add <code class="docutils literal notranslate"><span class="pre">--mlflow</span> <span class="pre">&lt;tracking-uri&gt;</span></code> to the <code class="docutils literal notranslate"><span class="pre">examples/megatron_bridge</span></code> scripts that write a checkpoint – <code class="docutils literal notranslate"><span class="pre">prune_minitron.py</span></code>, <code class="docutils literal notranslate"><span class="pre">quantize.py</span></code>, <code class="docutils literal notranslate"><span class="pre">distill.py</span></code>, <code class="docutils literal notranslate"><span class="pre">export_quantized_megatron_to_hf.py</span></code> and <code class="docutils literal notranslate"><span class="pre">export_distilled_megatron_to_hf.py</span></code> (MLflow’s own <code class="docutils literal notranslate"><span class="pre">MLFLOW_TRACKING_URI</span></code> is honoured too). Each run records the invocation, its arguments as searchable params and its log – a distillation records its training metrics instead of the rank-0 log – and writes <code class="docutils literal notranslate"><span class="pre">.experiment.json</span></code> into the checkpoint it produced, so a pruning, a quantization, the distillation that refines its checkpoint and the export that deploys it can be traced to one another; uploading the checkpoints themselves stays off unless <code class="docutils literal notranslate"><span class="pre">--mlflow_log_checkpoints</span></code> is passed.</p></li>
+<li><p>Add <code class="docutils literal notranslate"><span class="pre">--ep_size</span></code> to <code class="docutils literal notranslate"><span class="pre">examples/megatron_bridge/export_quantized_megatron_to_hf.py</span></code> so large MoE models with grouped-GEMM experts can be exported with their experts sharded across GPUs. Checkpoints built with <code class="docutils literal notranslate"><span class="pre">--no_moe_grouped_gemm</span></code> must still be exported at <code class="docutils literal notranslate"><span class="pre">--ep_size</span> <span class="pre">1</span></code>.</p></li>
+<li><p>Add unified HF export of GLM-5 / GLM-5.2 (<code class="docutils literal notranslate"><span class="pre">glm_moe_dsa</span></code>) checkpoints quantized with <code class="docutils literal notranslate"><span class="pre">examples/megatron_bridge</span></code>. The MTP layer, which Megatron-Bridge does not build for these models, is copied through unquantized from the source checkpoint. DSA sparse-attention models also gain FP8 KV-cache quantization on Megatron.</p></li>
 </ul>
 <p><em>Misc</em></p>
 <ul class="simple">
@@ -487,6 +498,9 @@ until a runtime consumes that metadata combination.</p></li>
 </ul>
 <p><strong>Backward Breaking Changes</strong></p>
 <ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">modelopt.torch.distill.plugins.megatron.TopKLogitsKLLoss</span></code> (<code class="docutils literal notranslate"><span class="pre">logit_kl_topk</span></code> in <code class="docutils literal notranslate"><span class="pre">DistillationConfig</span></code>) is renamed to <code class="docutils literal notranslate"><span class="pre">TopLogitsKLLoss</span></code>, keeping the old name as a deprecated alias. It now normalizes both distributions over the full vocabulary instead of re-normalizing over the Top-K entries, and always appends a “ghost” token holding the probability mass outside the Top-K to both student and teacher (matching Megatron-LM’s offline cached-logits KD loss). Loss values change for existing <code class="docutils literal notranslate"><span class="pre">logit_kl_topk</span></code> runs.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">LogitsAndIntermediatesLossBalancer</span></code> (Megatron distillation plugin) no longer rescales the distillation loss to the magnitude of the LM loss when the LM loss is included. The total is now the fixed convex combination <code class="docutils literal notranslate"><span class="pre">(1</span> <span class="pre">-</span> <span class="pre">alpha)</span> <span class="pre">*</span> <span class="pre">lm_loss</span> <span class="pre">+</span> <span class="pre">alpha</span> <span class="pre">*</span> <span class="pre">kd_loss</span></code> with <code class="docutils literal notranslate"><span class="pre">DistillationConfig.kd_loss_alpha</span></code> (in [0, 1]), matching Megatron-LM’s offline cached-logits KD. The default <code class="docutils literal notranslate"><span class="pre">kd_loss_alpha=1.0</span></code> skips the LM loss, as before. <code class="docutils literal notranslate"><span class="pre">DistillationConfig.skip_lm_loss</span></code> and <code class="docutils literal notranslate"><span class="pre">kd_loss_scale</span></code> are removed and raise <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> if passed; set <code class="docutils literal notranslate"><span class="pre">kd_loss_alpha</span></code> instead. In <code class="docutils literal notranslate"><span class="pre">examples/megatron_bridge/distill.py</span></code>, <code class="docutils literal notranslate"><span class="pre">--kd_loss_alpha</span></code> replaces <code class="docutils literal notranslate"><span class="pre">--no_skip_lm_loss</span></code> and <code class="docutils literal notranslate"><span class="pre">--kd_loss_scale</span></code>.</p></li>
+<li><p>The Megatron-Core DeepSeek-V4 indexer (<code class="docutils literal notranslate"><span class="pre">CSAIndexer</span></code>) is now a quantization module and persists its quantizer state in the checkpoint as <code class="docutils literal notranslate"><span class="pre">indexer._extra_state</span></code>. A DeepSeek-V4 model quantized with an earlier release resumes from its <code class="docutils literal notranslate"><span class="pre">torch_dist</span></code> checkpoint only with a non-strict load (<code class="docutils literal notranslate"><span class="pre">--dist-ckpt-strictness</span> <span class="pre">log_unexpected</span></code> in Megatron-LM) until it is saved again.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">examples/hf_ptq</span></code> no longer detects MTP layers by name. Weights the loader could not place – an MTP head, an auxiliary tower – are identified from Transformers’ own accounting: the model is loaded with <code class="docutils literal notranslate"><span class="pre">from_pretrained(...,</span> <span class="pre">output_loading_info=True)</span></code> and the reported <code class="docutils literal notranslate"><span class="pre">unexpected_keys</span></code> (present in the checkpoint, not in the model’s architecture) are recorded on the model and carried into the export unchanged. Everything the loader <em>did</em> place goes through the normal export path. This removes <code class="docutils literal notranslate"><span class="pre">load_mtp_weights</span></code>, <code class="docutils literal notranslate"><span class="pre">mtp_layer_prefixes_from_checkpoint</span></code> and their support matrix of MTP storage conventions, along with <code class="docutils literal notranslate"><span class="pre">_add_mtp_exclusions</span></code> and the pre-quantization <code class="docutils literal notranslate"><span class="pre">enable:</span> <span class="pre">False</span></code> entries <code class="docutils literal notranslate"><span class="pre">hf_ptq</span></code> appended to the recipe’s <code class="docutils literal notranslate"><span class="pre">quant_cfg</span></code>. Two consequences: MTP layers now follow the recipe like any other module instead of being force-excluded by the script – matching <code class="docutils literal notranslate"><span class="pre">examples/megatron_bridge</span></code>, which has no MTP-specific code at all – and <code class="docutils literal notranslate"><span class="pre">quantization_config.ignore</span></code> can no longer claim a layer is unquantized that the export in fact quantized. Recipes importing <code class="docutils literal notranslate"><span class="pre">configs/ptq/units/default_disabled_quantizers</span></code> still disable <code class="docutils literal notranslate"><span class="pre">mtp.*</span></code>, so their behaviour is unchanged; a recipe omitting that unit will now quantize an MTP the model actually built.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">examples/hf_ptq</span> <span class="pre">--vllm_fakequant_export</span></code> now raises <code class="docutils literal notranslate"><span class="pre">NotImplementedError</span></code> when the checkpoint holds weights the model has no parameter for and a shard actually provides them (an MTP head, an auxiliary tower). The fake-quant exporter writes only model-backed state, so it would otherwise drop those weights silently – and a fake-quant checkpoint is evaluated, where a missing head changes the score rather than failing loudly. Use the unified HF export, which carries them through. Buffers Transformers recomputes are not weights to lose: <code class="docutils literal notranslate"><span class="pre">*.inv_freq</span></code> is skipped even when a shard provides it, since older Llama/Mistral-lineage conversions do list it in the index and refusing an export over it would reject checkpoints that export correctly today. The check runs immediately after the model loads, not at export time, so an incompatible run fails before calibration rather than after it.</p></li>
 <li><p>The <code class="docutils literal notranslate"><span class="pre">modelopt.onnx.quantization.graph_utils</span></code> module has been removed with no
@@ -535,6 +549,7 @@ release.</p></li>
 </ul>
 <p><strong>Bug Fixes</strong></p>
 <ul class="simple">
+<li><p>Fix Megatron unified HF export of MoE models with grouped-GEMM experts when only the experts are quantized (e.g. <code class="docutils literal notranslate"><span class="pre">nvfp4_experts_only-*</span></code> recipes): <code class="docutils literal notranslate"><span class="pre">hf_quant_config.json</span></code> and the <code class="docutils literal notranslate"><span class="pre">quantization_config</span></code> in <code class="docutils literal notranslate"><span class="pre">config.json</span></code> were not written, so the quantized experts were served as unquantized weights. Re-export such checkpoints.</p></li>
 <li><p>Fix Megatron-Core checkpoint saving for quantized grouped MoE experts when tensor and expert parallelism are both enabled.</p></li>
 <li><p>Fix unified HuggingFace export of RADIO-based VLMs retaining post-conversion vision and
 projector names instead of restoring the hub layout; deployment loaders could skip those weights.
@@ -868,8 +883,8 @@ directly together with ModelOpt PTQ in <code class="docutils literal notranslate
 <li><p>Add installation support for Python 3.14. Only basic unit tests are verified for now. Production usage still defaults to Python 3.12. Python 3.10 support will be dropped in the next release.</p></li>
 </ul>
 </section>
-<section id="id8">
-<h2>0.43.0 (2026-04-16)<a class="headerlink" href="#id8" title="Link to this heading">#</a></h2>
+<section id="id9">
+<h2>0.43.0 (2026-04-16)<a class="headerlink" href="#id9" title="Link to this heading">#</a></h2>
 <p><strong>Bug Fixes</strong></p>
 <ul class="simple">
 <li><p>ONNX Runtime dependency upgraded to 1.24 to solve missing graph outputs when using the TensorRT Execution Provider.</p></li>
@@ -912,8 +927,8 @@ directly together with ModelOpt PTQ in <code class="docutils literal notranslate
 <li><p>Enable experimental Python 3.13 wheel support and unit tests in CI/CD.</p></li>
 </ul>
 </section>
-<section id="id10">
-<h2>0.42.0 (2026-03-09)<a class="headerlink" href="#id10" title="Link to this heading">#</a></h2>
+<section id="id11">
+<h2>0.42.0 (2026-03-09)<a class="headerlink" href="#id11" title="Link to this heading">#</a></h2>
 <p><strong>Bug Fixes</strong></p>
 <ul class="simple">
 <li><p>Fix calibration data generation with multiple samples in the ONNX workflow.</p></li>
@@ -936,8 +951,8 @@ directly together with ModelOpt PTQ in <code class="docutils literal notranslate
 <li><p>Add distillation support for LTX-2. See <a class="reference external" href="https://github.com/NVIDIA/Model-Optimizer/tree/main/examples/diffusers/distillation" rel="noopener noreferrer" target="_blank">examples/diffusers/distillation/README.md</a> for more details.</p></li>
 </ul>
 </section>
-<section id="id13">
-<h2>0.41.0 (2026-01-20)<a class="headerlink" href="#id13" title="Link to this heading">#</a></h2>
+<section id="id14">
+<h2>0.41.0 (2026-01-20)<a class="headerlink" href="#id14" title="Link to this heading">#</a></h2>
 <p><strong>Bug Fixes</strong></p>
 <ul class="simple">
 <li><p>Fix Megatron KV Cache quantization checkpoint restore for QAT/QAD (device placement, amax sync across DP/TP, flash_decode compatibility).</p></li>
@@ -969,8 +984,8 @@ directly together with ModelOpt PTQ in <code class="docutils literal notranslate
 <li><p>Add <a class="reference external" href="https://github.com/NVIDIA/Model-Optimizer/tree/main/examples/windows/accuracy_benchmark/perplexity_metrics" rel="noopener noreferrer" target="_blank">Perplexity</a> and <a class="reference external" href="https://github.com/NVIDIA/Model-Optimizer/tree/main/examples/windows/accuracy_benchmark/kl_divergence_metrics" rel="noopener noreferrer" target="_blank">KL-Divergence</a> accuracy benchmarks.</p></li>
 </ul>
 </section>
-<section id="id14">
-<h2>0.40.0 (2025-12-12)<a class="headerlink" href="#id14" title="Link to this heading">#</a></h2>
+<section id="id15">
+<h2>0.40.0 (2025-12-12)<a class="headerlink" href="#id15" title="Link to this heading">#</a></h2>
 <p><strong>Bug Fixes</strong></p>
 <ul class="simple">
 <li><p>Fix a bug in FastNAS pruning (computer vision models) where the model parameters were sorted twice messing up the ordering.</p></li>
@@ -1000,8 +1015,8 @@ directly together with ModelOpt PTQ in <code class="docutils literal notranslate
 <li><p>Replace ONNX simplification package from <code class="docutils literal notranslate"><span class="pre">onnxsim</span></code> to <code class="docutils literal notranslate"><span class="pre">onnxslim</span></code>.</p></li>
 </ul>
 </section>
-<section id="id16">
-<h2>0.39.0 (2025-11-13)<a class="headerlink" href="#id16" title="Link to this heading">#</a></h2>
+<section id="id17">
+<h2>0.39.0 (2025-11-13)<a class="headerlink" href="#id17" title="Link to this heading">#</a></h2>
 <p><strong>Deprecations</strong></p>
 <ul class="simple">
 <li><p>Deprecated <code class="docutils literal notranslate"><span class="pre">modelopt.torch._deploy.utils.get_onnx_bytes</span></code> API. Please use <code class="docutils literal notranslate"><span class="pre">modelopt.torch._deploy.utils.get_onnx_bytes_and_metadata</span></code> instead to access the ONNX model bytes with external data. see <a class="reference external" href="https://github.com/NVIDIA/Model-Optimizer/tree/main/examples/onnx_ptq/download_example_onnx.py" rel="noopener noreferrer" target="_blank">examples/onnx_ptq/download_example_onnx.py</a> for example usage.</p></li>
@@ -1029,8 +1044,8 @@ directly together with ModelOpt PTQ in <code class="docutils literal notranslate
 <li><p>Added example for exporting QLoRA checkpoint for vLLM deployment. Refer to <a class="reference external" href="https://github.com/NVIDIA/Model-Optimizer/blob/79ef31bc7269ba4da0cfab446da5b64509cbfcef/examples/llm_qat/README.md#qlora-deployment" rel="noopener noreferrer" target="_blank">examples/llm_qat/README.md</a> for more details</p></li>
 </ul>
 </section>
-<section id="id17">
-<h2>0.37.0 (2025-10-08)<a class="headerlink" href="#id17" title="Link to this heading">#</a></h2>
+<section id="id18">
+<h2>0.37.0 (2025-10-08)<a class="headerlink" href="#id18" title="Link to this heading">#</a></h2>
 <p><strong>Deprecations</strong></p>
 <ul class="simple">
 <li><p>Deprecated ModelOpt’s custom docker images. Please use the PyTorch, TensorRT-LLM or TensorRT docker image directly or refer to the <a class="reference external" href="https://nvidia.github.io/Model-Optimizer/getting_started/2_installation.html" rel="noopener noreferrer" target="_blank">installation guide</a> for more details.</p></li>
@@ -1048,15 +1063,15 @@ directly together with ModelOpt PTQ in <code class="docutils literal notranslate
 <li><p>Add Minitron pruning example for Megatron-LM framework. See <a class="reference external" href="https://github.com/NVIDIA/Megatron-LM/tree/main/examples/post_training/modelopt" rel="noopener noreferrer" target="_blank">Megatron-LM/examples/post_training/modelopt</a> for more details.</p></li>
 </ul>
 </section>
-<section id="id19">
-<h2>0.35.1 (2025-09-20)<a class="headerlink" href="#id19" title="Link to this heading">#</a></h2>
+<section id="id20">
+<h2>0.35.1 (2025-09-20)<a class="headerlink" href="#id20" title="Link to this heading">#</a></h2>
 <p><strong>Bug Fixes</strong></p>
 <ul class="simple">
 <li><p>Import fixes</p></li>
 </ul>
 </section>
-<section id="id20">
-<h2>0.35.0 (2025-09-04)<a class="headerlink" href="#id20" title="Link to this heading">#</a></h2>
+<section id="id21">
+<h2>0.35.0 (2025-09-04)<a class="headerlink" href="#id21" title="Link to this heading">#</a></h2>
 <p><strong>Deprecations</strong></p>
 <ul class="simple">
 <li><p>Deprecate <code class="docutils literal notranslate"><span class="pre">torch&lt;2.6</span></code> support.</p></li>
@@ -1083,15 +1098,15 @@ ModelOpt trainers can be used as drop in replacement of the corresponding Huggin
 <li><p>Add unified HuggingFace model export support for quantized NVFP4 GPT-OSS models.</p></li>
 </ul>
 </section>
-<section id="id21">
-<h2>0.33.1 (2025-08-12)<a class="headerlink" href="#id21" title="Link to this heading">#</a></h2>
+<section id="id22">
+<h2>0.33.1 (2025-08-12)<a class="headerlink" href="#id22" title="Link to this heading">#</a></h2>
 <p><strong>Bug Fixes</strong></p>
 <ul class="simple">
 <li><p>Fix a Qwen3 MOE model export issue.</p></li>
 </ul>
 </section>
-<section id="id22">
-<h2>0.33.0 (2025-07-14)<a class="headerlink" href="#id22" title="Link to this heading">#</a></h2>
+<section id="id23">
+<h2>0.33.0 (2025-07-14)<a class="headerlink" href="#id23" title="Link to this heading">#</a></h2>
 <p><strong>Backward Breaking Changes</strong></p>
 <ul class="simple">
 <li><p>PyTorch dependencies for <code class="docutils literal notranslate"><span class="pre">modelopt.torch</span></code> features are no longer optional and <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">nvidia-modelopt</span></code> is now same as <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">nvidia-modelopt[torch]</span></code>.</p></li>
@@ -1113,8 +1128,8 @@ ModelOpt trainers can be used as drop in replacement of the corresponding Huggin
 <li><p>Model Optimizer for Windows now supports <a class="reference external" href="https://onnxruntime.ai/docs/execution-providers/TensorRTRTX-ExecutionProvider.html" rel="noopener noreferrer" target="_blank">NvTensorRtRtx</a> execution-provider.</p></li>
 </ul>
 </section>
-<section id="id23">
-<h2>0.31.0 (2025-06-05)<a class="headerlink" href="#id23" title="Link to this heading">#</a></h2>
+<section id="id24">
+<h2>0.31.0 (2025-06-05)<a class="headerlink" href="#id24" title="Link to this heading">#</a></h2>
 <p><strong>Backward Breaking Changes</strong></p>
 <ul class="simple">
 <li><dl class="simple">
@@ -1151,8 +1166,8 @@ ModelOpt trainers can be used as drop in replacement of the corresponding Huggin
 <li><p>Support <code class="docutils literal notranslate"><span class="pre">NemotronHForCausalLM</span></code>, <code class="docutils literal notranslate"><span class="pre">Qwen3ForCausalLM</span></code>, <code class="docutils literal notranslate"><span class="pre">Qwen3MoeForCausalLM</span></code> Megatron Core model import/export (from/to HuggingFace).</p></li>
 </ul>
 </section>
-<section id="id24">
-<h2>0.29.0 (2025-05-09)<a class="headerlink" href="#id24" title="Link to this heading">#</a></h2>
+<section id="id25">
+<h2>0.29.0 (2025-05-09)<a class="headerlink" href="#id25" title="Link to this heading">#</a></h2>
 <p><strong>Backward Breaking Changes</strong></p>
 <ul class="simple">
 <li><p>Refactor <code class="docutils literal notranslate"><span class="pre">SequentialQuantizer</span></code> to improve its implementation and maintainability while preserving its functionality.</p></li>
@@ -1186,15 +1201,15 @@ ModelOpt trainers can be used as drop in replacement of the corresponding Huggin
 <li><p>Add new example for torch quantization to ONNX for MXFP8, NVFP4 precision.</p></li>
 </ul>
 </section>
-<section id="id25">
-<h2>0.27.1 (2025-04-15)<a class="headerlink" href="#id25" title="Link to this heading">#</a></h2>
+<section id="id26">
+<h2>0.27.1 (2025-04-15)<a class="headerlink" href="#id26" title="Link to this heading">#</a></h2>
 <p><strong>New Features</strong></p>
 <ul class="simple">
 <li><p>Add experimental quantization support for Llama4, QwQ and Qwen MOE models.</p></li>
 </ul>
 </section>
-<section id="id26">
-<h2>0.27.0 (2025-04-03)<a class="headerlink" href="#id26" title="Link to this heading">#</a></h2>
+<section id="id27">
+<h2>0.27.0 (2025-04-03)<a class="headerlink" href="#id27" title="Link to this heading">#</a></h2>
 <p><strong>Deprecations</strong></p>
 <ul class="simple">
 <li><p>Deprecate real quantization configs, please use <a class="reference internal" href="generated/modelopt.torch.quantization.compress.html#modelopt.torch.quantization.compress" title="modelopt.torch.quantization.compress"><code class="xref py py-meth docutils literal notranslate"><span class="pre">mtq.compress</span></code></a> API for model compression after quantization.</p></li>
@@ -1230,8 +1245,8 @@ ModelOpt trainers can be used as drop in replacement of the corresponding Huggin
 <li><p>Quantization of T5 models is broken. Please use <code class="docutils literal notranslate"><span class="pre">nvidia-modelopt==0.25.0</span></code> with <code class="docutils literal notranslate"><span class="pre">transformers&lt;4.50</span></code> meanwhile.</p></li>
 </ul>
 </section>
-<section id="id27">
-<h2>0.25.0 (2025-03-03)<a class="headerlink" href="#id27" title="Link to this heading">#</a></h2>
+<section id="id28">
+<h2>0.25.0 (2025-03-03)<a class="headerlink" href="#id28" title="Link to this heading">#</a></h2>
 <p><strong>Deprecations</strong></p>
 <ul class="simple">
 <li><p>Deprecate Torch 2.1 support.</p></li>
@@ -1252,23 +1267,23 @@ It can be used for rotation based quantization methods, e.g. QuaRot. Users need 
 <li><p>Add end-to-end <a class="reference external" href="https://github.com/NVIDIA/Model-Optimizer/tree/main/examples/llm_autodeploy" rel="noopener noreferrer" target="_blank">AutoDeploy example for AutoQuant LLM models</a>.</p></li>
 </ul>
 </section>
-<section id="id28">
-<h2>0.23.2 (2025-02-19)<a class="headerlink" href="#id28" title="Link to this heading">#</a></h2>
+<section id="id29">
+<h2>0.23.2 (2025-02-19)<a class="headerlink" href="#id29" title="Link to this heading">#</a></h2>
 <p><strong>Bug Fixes</strong></p>
 <ul class="simple">
 <li><p>Fix export for Nvidia NeMo models.</p></li>
 </ul>
 </section>
-<section id="id29">
-<h2>0.23.1 (2025-02-14)<a class="headerlink" href="#id29" title="Link to this heading">#</a></h2>
+<section id="id30">
+<h2>0.23.1 (2025-02-14)<a class="headerlink" href="#id30" title="Link to this heading">#</a></h2>
 <p><strong>Bug Fixes</strong></p>
 <ul class="simple">
 <li><p>Set <code class="docutils literal notranslate"><span class="pre">torch.load(...,</span> <span class="pre">weights_only=False)</span></code> where Model Optimizer state is restored since torch 2.6 makes the default value to <code class="docutils literal notranslate"><span class="pre">True</span></code>.</p></li>
 <li><p>Other minor fixes.</p></li>
 </ul>
 </section>
-<section id="id30">
-<h2>0.23.0 (2025-01-29)<a class="headerlink" href="#id30" title="Link to this heading">#</a></h2>
+<section id="id31">
+<h2>0.23.0 (2025-01-29)<a class="headerlink" href="#id31" title="Link to this heading">#</a></h2>
 <p><strong>Backward Breaking Changes</strong></p>
 <ul class="simple">
 <li><p>Support TensorRT-LLM to 0.17. Examples (e.g. benchmark task in llm_ptq) may not be fully compatible with TensorRT-LLM 0.15.</p></li>
@@ -1289,8 +1304,8 @@ It can be used for rotation based quantization methods, e.g. QuaRot. Users need 
 <li><p>The unified llama3.1 FP8 huggingface checkpoints can be deployed on <a class="reference external" href="https://github.com/sgl-project/sglang/pull/2535" rel="noopener noreferrer" target="_blank">SGLang</a>.</p></li>
 </ul>
 </section>
-<section id="id31">
-<h2>0.21.0 (2024-12-03)<a class="headerlink" href="#id31" title="Link to this heading">#</a></h2>
+<section id="id32">
+<h2>0.21.0 (2024-12-03)<a class="headerlink" href="#id32" title="Link to this heading">#</a></h2>
 <p><strong>Backward Breaking Changes</strong></p>
 <ul class="simple">
 <li><p>Support TensorRT-LLM to 0.15. Examples (e.g. benchmark task in llm_ptq) may not be fully compatible with TensorRT-LLM 0.14.</p></li>
@@ -1315,8 +1330,8 @@ It can be used for rotation based quantization methods, e.g. QuaRot. Users need 
 <li><p>Added deprecation warnings for Python 3.8, torch 2.0, and CUDA 11.x. Support will be dropped in the next release.</p></li>
 </ul>
 </section>
-<section id="id32">
-<h2>0.19.0 (2024-10-23)<a class="headerlink" href="#id32" title="Link to this heading">#</a></h2>
+<section id="id33">
+<h2>0.19.0 (2024-10-23)<a class="headerlink" href="#id33" title="Link to this heading">#</a></h2>
 <p><strong>Backward Breaking Changes</strong></p>
 <ul class="simple">
 <li><p>Deprecated the summarize task in the <code class="docutils literal notranslate"><span class="pre">llm_ptq</span></code> example.</p></li>
@@ -1354,8 +1369,8 @@ quantization for NeMo &amp; MCore models (in addition to HuggingFace models).</p
 </ul>
 <p>* <em>This version includes experimental features such as TensorRT deployment of ONNX INT4 models, PyTorch quantization and sparsity. These are currently unverified on Windows.</em></p>
 </section>
-<section id="id33">
-<h2>0.17.0 (2024-09-11)<a class="headerlink" href="#id33" title="Link to this heading">#</a></h2>
+<section id="id34">
+<h2>0.17.0 (2024-09-11)<a class="headerlink" href="#id34" title="Link to this heading">#</a></h2>
 <p><strong>Backward Breaking Changes</strong></p>
 <ul class="simple">
 <li><p>Deprecated <code class="docutils literal notranslate"><span class="pre">torch&lt;2.0</span></code> support.</p></li>
@@ -1390,8 +1405,8 @@ no longer needed for supporting distributed data and tensor parallelism in quant
 a future release.</p></li>
 </ul>
 </section>
-<section id="id34">
-<h2>0.15.0 (2024-07-25)<a class="headerlink" href="#id34" title="Link to this heading">#</a></h2>
+<section id="id35">
+<h2>0.15.0 (2024-07-25)<a class="headerlink" href="#id35" title="Link to this heading">#</a></h2>
 <p><strong>Backward Breaking Changes</strong></p>
 <ul class="simple">
 <li><p>Deprecated <code class="xref py py-class docutils literal notranslate"><span class="pre">QuantDescriptor</span></code>.
@@ -1423,8 +1438,8 @@ Hugging Face models with namings aligned with its original checkpoints.</p></li>
 <li><p>Added deprecation warning for <code class="docutils literal notranslate"><span class="pre">torch&lt;2.0</span></code>. Support will be dropped in next release.</p></li>
 </ul>
 </section>
-<section id="id35">
-<h2>0.13.0 (2024-06-14)<a class="headerlink" href="#id35" title="Link to this heading">#</a></h2>
+<section id="id36">
+<h2>0.13.0 (2024-06-14)<a class="headerlink" href="#id36" title="Link to this heading">#</a></h2>
 <p><strong>Backward Breaking Changes</strong></p>
 <ul class="simple">
 <li><p><a class="reference external" href="https://github.com/NVIDIA/Model-Optimizer/tree/main/examples/llm_ptq" rel="noopener noreferrer" target="_blank">PTQ examples</a> have been
@@ -1441,8 +1456,8 @@ upgraded to use TensorRT-LLM 0.10.</p></li>
 <li><p>(Experimental) Python 3.12 support added.</p></li>
 </ul>
 </section>
-<section id="id37">
-<h2>0.11.0 (2024-05-07)<a class="headerlink" href="#id37" title="Link to this heading">#</a></h2>
+<section id="id38">
+<h2>0.11.0 (2024-05-07)<a class="headerlink" href="#id38" title="Link to this heading">#</a></h2>
 <p><strong>Backward Breaking Changes</strong></p>
 <ul class="simple">
 <li><p>[!!!] The package was renamed from <code class="docutils literal notranslate"><span class="pre">ammo</span></code> to <code class="docutils literal notranslate"><span class="pre">modelopt</span></code>. The new full product

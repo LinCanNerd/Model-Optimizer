@@ -2,7 +2,7 @@
 <html lang="en" data-accent-color="green" data-content_root="../../">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"><title>quantization - Model Optimizer 0.0.1.dev1+g33b66382d</title><link rel="index" title="Index" href="../../genindex.html" /><link rel="search" title="Search" href="../../search.html" /><link rel="next" title="algorithms" href="modelopt.torch.quantization.algorithms.html" /><link rel="prev" title="vllm_adapter" href="modelopt.torch.puzzletron.utils.vllm_adapter.html" /><script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"><title>quantization - Model Optimizer 0.0.1.dev1+gaa8ee4413</title><link rel="index" title="Index" href="../../genindex.html" /><link rel="search" title="Search" href="../../search.html" /><link rel="next" title="algorithms" href="modelopt.torch.quantization.algorithms.html" /><link rel="prev" title="vllm_adapter" href="modelopt.torch.puzzletron.utils.vllm_adapter.html" /><script>
     function setColorMode(t){let e=document.documentElement;e.setAttribute("data-color-mode",t);let a=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches,s=t;"auto"===t&&(s=a?"dark":"light"),"light"===s?(e.classList.remove("dark"),e.classList.add("light")):(e.classList.remove("light"),e.classList.add("dark"))}
     setColorMode(localStorage._theme||"auto");
   </script><link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=e1a1ceaf" />
@@ -309,6 +309,7 @@ data-aria-dark="Switch to auto color mode">
 <li class="toctree-l4"><a class="reference internal" href="modelopt.torch.quantization.extensions.html">extensions</a></li>
 <li class="toctree-l4"><a class="reference internal" href="modelopt.torch.quantization.ggml.html">ggml</a></li>
 <li class="toctree-l4"><a class="reference internal" href="modelopt.torch.quantization.kv_cache_auto_quant.html">kv_cache_auto_quant</a></li>
+<li class="toctree-l4"><a class="reference internal" href="modelopt.torch.quantization.linear_attention.html">linear_attention</a></li>
 <li class="toctree-l4"><a class="reference internal" href="modelopt.torch.quantization.mode.html">mode</a></li>
 <li class="toctree-l4"><a class="reference internal" href="modelopt.torch.quantization.model_calib.html">model_calib</a></li>
 <li class="toctree-l4"><a class="reference internal" href="modelopt.torch.quantization.model_quant.html">model_quant</a></li>
@@ -458,28 +459,31 @@ data-aria-dark="Switch to auto color mode">
 <tr class="row-even"><td><p><a class="reference internal" href="modelopt.torch.quantization.kv_cache_auto_quant.html#module-modelopt.torch.quantization.kv_cache_auto_quant" title="modelopt.torch.quantization.kv_cache_auto_quant"><code class="xref py py-obj docutils literal notranslate"><span class="pre">modelopt.torch.quantization.kv_cache_auto_quant</span></code></a></p></td>
 <td><p>Layer-wise KV-cache AutoQuantize using isolated forward KL sensitivity.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="modelopt.torch.quantization.mode.html#module-modelopt.torch.quantization.mode" title="modelopt.torch.quantization.mode"><code class="xref py py-obj docutils literal notranslate"><span class="pre">modelopt.torch.quantization.mode</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="modelopt.torch.quantization.linear_attention.html#module-modelopt.torch.quantization.linear_attention" title="modelopt.torch.quantization.linear_attention"><code class="xref py py-obj docutils literal notranslate"><span class="pre">modelopt.torch.quantization.linear_attention</span></code></a></p></td>
+<td><p>Helpers for linear-attention quantization.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="modelopt.torch.quantization.mode.html#module-modelopt.torch.quantization.mode" title="modelopt.torch.quantization.mode"><code class="xref py py-obj docutils literal notranslate"><span class="pre">modelopt.torch.quantization.mode</span></code></a></p></td>
 <td><p>This module contains the mode descriptor for the quantization mode.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="modelopt.torch.quantization.model_calib.html#module-modelopt.torch.quantization.model_calib" title="modelopt.torch.quantization.model_calib"><code class="xref py py-obj docutils literal notranslate"><span class="pre">modelopt.torch.quantization.model_calib</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="modelopt.torch.quantization.model_calib.html#module-modelopt.torch.quantization.model_calib" title="modelopt.torch.quantization.model_calib"><code class="xref py py-obj docutils literal notranslate"><span class="pre">modelopt.torch.quantization.model_calib</span></code></a></p></td>
 <td><p>Calibration utilities.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="modelopt.torch.quantization.model_quant.html#module-modelopt.torch.quantization.model_quant" title="modelopt.torch.quantization.model_quant"><code class="xref py py-obj docutils literal notranslate"><span class="pre">modelopt.torch.quantization.model_quant</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="modelopt.torch.quantization.model_quant.html#module-modelopt.torch.quantization.model_quant" title="modelopt.torch.quantization.model_quant"><code class="xref py py-obj docutils literal notranslate"><span class="pre">modelopt.torch.quantization.model_quant</span></code></a></p></td>
 <td><p>User-facing quantization API.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="modelopt.torch.quantization.nn.html#module-modelopt.torch.quantization.nn" title="modelopt.torch.quantization.nn"><code class="xref py py-obj docutils literal notranslate"><span class="pre">modelopt.torch.quantization.nn</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="modelopt.torch.quantization.nn.html#module-modelopt.torch.quantization.nn" title="modelopt.torch.quantization.nn"><code class="xref py py-obj docutils literal notranslate"><span class="pre">modelopt.torch.quantization.nn</span></code></a></p></td>
 <td><p>Modules with quantization support.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="modelopt.torch.quantization.plugins.html#module-modelopt.torch.quantization.plugins" title="modelopt.torch.quantization.plugins"><code class="xref py py-obj docutils literal notranslate"><span class="pre">modelopt.torch.quantization.plugins</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="modelopt.torch.quantization.plugins.html#module-modelopt.torch.quantization.plugins" title="modelopt.torch.quantization.plugins"><code class="xref py py-obj docutils literal notranslate"><span class="pre">modelopt.torch.quantization.plugins</span></code></a></p></td>
 <td><p>Handles quantization plugins to correctly quantize third-party modules.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="modelopt.torch.quantization.qtensor.html#module-modelopt.torch.quantization.qtensor" title="modelopt.torch.quantization.qtensor"><code class="xref py py-obj docutils literal notranslate"><span class="pre">modelopt.torch.quantization.qtensor</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="modelopt.torch.quantization.qtensor.html#module-modelopt.torch.quantization.qtensor" title="modelopt.torch.quantization.qtensor"><code class="xref py py-obj docutils literal notranslate"><span class="pre">modelopt.torch.quantization.qtensor</span></code></a></p></td>
 <td><p>Tensor Class for Real Quantization.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="modelopt.torch.quantization.tensor_quant.html#module-modelopt.torch.quantization.tensor_quant" title="modelopt.torch.quantization.tensor_quant"><code class="xref py py-obj docutils literal notranslate"><span class="pre">modelopt.torch.quantization.tensor_quant</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="modelopt.torch.quantization.tensor_quant.html#module-modelopt.torch.quantization.tensor_quant" title="modelopt.torch.quantization.tensor_quant"><code class="xref py py-obj docutils literal notranslate"><span class="pre">modelopt.torch.quantization.tensor_quant</span></code></a></p></td>
 <td><p>Basic tensor quantization functions.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="modelopt.torch.quantization.utils.html#module-modelopt.torch.quantization.utils" title="modelopt.torch.quantization.utils"><code class="xref py py-obj docutils literal notranslate"><span class="pre">modelopt.torch.quantization.utils</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="modelopt.torch.quantization.utils.html#module-modelopt.torch.quantization.utils" title="modelopt.torch.quantization.utils"><code class="xref py py-obj docutils literal notranslate"><span class="pre">modelopt.torch.quantization.utils</span></code></a></p></td>
 <td><p>Quantization utilities.</p></td>
 </tr>
 </tbody>

@@ -31,6 +31,7 @@ ggml
    .. autosummary::
       :nosignatures:
    
+      GGMLFormat
       IQFormat
    
    
@@ -64,5 +65,8 @@ ggml
       iq2_xxs_fake_quant
       iq2_xxs_grid
       quantize_iq2_xxs
+      dequantize_q8_0
+      q8_0_fake_quant
+      quantize_q8_0
    
    
