@@ -14,7 +14,9 @@
 # limitations under the License.
 
 
-"""Tests for the DeepSeek-V4-Pro-0813 checkpoint-mirror PTQ recipe and its guard.
+"""Tests for ``examples/deepseek/deepseek_v4/ptq.py``: the DeepSeek-V4-Pro-0813 PTQ
+recipe and its guard, and the FP8 block-size handling that lets the script load both
+V4-Pro (128x128 blocks) and V4.1-Flash (32x32).
 
 ``examples/deepseek/deepseek_v4/ptq.py`` keeps ``_build_nvfp4_experts_cfg()`` as its
 default, so the recipe and that builder can drift apart without anything failing --
@@ -26,9 +28,11 @@ lanes cover a fixed allowlist that has no deepseek entry.
 import copy
 import fnmatch
 import importlib.util
+import types
 from pathlib import Path
 
 import pytest
+import torch
 
 _SCRIPT = Path(__file__).resolve().parents[3] / "examples" / "deepseek" / "deepseek_v4" / "ptq.py"
 _SPEC = importlib.util.spec_from_file_location("deepseek_v4_ptq", _SCRIPT)
@@ -161,3 +165,72 @@ def test_guard_rejects_a_non_ptq_recipe():
     """``--recipe`` takes any path; a speculative-decoding recipe has no ``quantize``."""
     with pytest.raises(ValueError, match="no 'quantize' section"):
         dsv4_ptq._quant_cfg_from_recipe("general/speculative_decoding/eagle3")
+
+
+# --- FP8 block size: V4-Pro's ``block_size`` (128) vs V4.1-Flash's ``fp8_block_size`` (32) --
+
+
+def _fp8_pair(m, n, block):
+    weight = torch.zeros(m, n, dtype=torch.float8_e4m3fn)
+    scale = torch.zeros(dsv4_ptq._fp8_scale_shape(weight, block), dtype=torch.uint8)
+    return weight, scale
+
+
+@pytest.mark.parametrize(
+    ("shape", "block", "expected"),
+    [
+        ((256, 256), 128, (2, 2)),
+        ((300, 70), 128, (3, 1)),
+        ((100, 70), 32, (4, 3)),
+        ((32, 32), 32, (1, 1)),
+    ],
+)
+def test_fp8_scale_shape_rounds_up(shape, block, expected):
+    """Matches ``Linear.__init__``: a partial trailing block still gets a scale."""
+    assert dsv4_ptq._fp8_scale_shape(torch.empty(shape), block) == expected
+
+
+@pytest.mark.parametrize(
+    ("module_globals", "block", "expected"),
+    [
+        ({"block_size": 128}, 128, 128),  # V4-Pro
+        ({"fp8_block_size": 32}, 32, 32),  # V4.1-Flash
+        ({"fp8_block_size": 32, "block_size": 128}, 32, 32),
+        ({"fp8_block_size": 32, "block_size": 128}, 128, 128),  # only the consistent global wins
+    ],
+    ids=["v4-pro", "v4.1-flash", "both-globals-32", "both-globals-128"],
+)
+def test_block_size_prefers_the_global_consistent_with_the_tensors(
+    monkeypatch, module_globals, block, expected
+):
+    monkeypatch.setattr(dsv4_ptq, "deekseep_v4_model", types.SimpleNamespace(**module_globals))
+    assert dsv4_ptq._ds_fp8_block_size(*_fp8_pair(256, 512, block)) == expected
+
+
+def test_block_size_falls_back_to_the_tensor_shapes(monkeypatch):
+    monkeypatch.setattr(dsv4_ptq, "deekseep_v4_model", types.SimpleNamespace())
+    assert dsv4_ptq._ds_fp8_block_size(*_fp8_pair(256, 512, 32)) == 32
+
+
+def test_block_size_rejects_shapes_no_square_block_explains(monkeypatch):
+    monkeypatch.setattr(dsv4_ptq, "deekseep_v4_model", types.SimpleNamespace(block_size=128))
+    weight = torch.zeros(256, 256, dtype=torch.float8_e4m3fn)
+    with pytest.raises(AssertionError, match="cannot infer FP8 block size"):
+        dsv4_ptq._ds_fp8_block_size(weight, torch.zeros(3, 5, dtype=torch.uint8))
+
+
+def test_fp8_dequant_crops_partial_blocks():
+    """Each element is scaled by its own block's UE8M0 exponent, including the partial
+    trailing blocks that the ceil-div scale shape allocates."""
+    m, n, block = 100, 70, 32
+    gen = torch.Generator().manual_seed(0)
+    weight = (torch.rand(m, n, generator=gen) * 4 - 2).to(torch.float8_e4m3fn)
+    exp = torch.randint(-3, 4, dsv4_ptq._fp8_scale_shape(weight, block), generator=gen)
+    scale = (exp + 127).to(torch.uint8)
+    got = dsv4_ptq._fp8_ue8m0_blockwise_to_bf16(weight, scale, block=block)
+    rows, cols = torch.arange(m)[:, None] // block, torch.arange(n)[None, :] // block
+    want = (weight.to(torch.float32) * torch.pow(2.0, exp[rows, cols].to(torch.float32))).to(
+        torch.bfloat16
+    )
+    assert got.shape == (m, n)
+    assert torch.equal(got, want)

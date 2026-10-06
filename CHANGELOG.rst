@@ -34,6 +34,7 @@ Changelog
 - vLLM fake-quant serving now runs on pre-quantized checkpoints such as FP8 when the recipe leaves those layers unquantized (for example a KV-cache-only recipe), and on MLA models with an FP8 KV cache; both previously failed during quantization.
 - ``KV_QUANT_CFG`` presets in vLLM fake-quant serving now quantize the MLA KV cache; on vLLM 0.16 and later they silently quantized nothing for MLA models.
 - vLLM fake-quant serving of NVFP4 and cast-mode KV-cache configs no longer needs ``--enforce-eager``. ``examples/vllm_serve/vllm_serve_fakequant.py`` now sets ``VLLM_DISABLE_COMPILE_CACHE=1`` by default, because a cached torch.compile graph of the same model without the fake quant would otherwise be reused.
+- ``examples/deepseek/deepseek_v4/ptq.py`` now supports DeepSeek-V4.1-Flash, whose reference implementation uses 32x32 FP8 blocks and a tokenizer-aware ``Transformer``; this is the setup used to produce ``nvidia/DeepSeek-V4.1-Flash-NVFP4``. DeepSeek-V4-Pro checkpoints work as before.
 
 *Speculative Decoding*
 
